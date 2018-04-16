@@ -1,0 +1,8 @@
+/*
+	Now when babel-loader is called in the webpack config file it knows what to do.
+*/
+{
+	"presets": [
+		"es2015", "react"
+	]
+}
