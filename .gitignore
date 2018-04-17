@@ -1,0 +1,15 @@
+# API keys
+.env
+
+# Dependency directory
+node_modules
+bower_components
+
+# ignore directories and files
+README.md
+public/
+.tmp/
+serverdata/
+client/assets
+
+
