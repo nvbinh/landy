@@ -93,13 +93,11 @@ epilogue.initialize({
   sequelize: database.sequelize
 });
 
-let User = require('./models/user');
-
-console.log(User);
+console.log(typeof database.User);
 
 // Configure a REST resource endpoint with Epilogue
 let userResource = epilogue.resource({
-  model: User,
+  model: database.User,
   endpoints: ['/users', '/users/:id']
 });
 
