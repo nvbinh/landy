@@ -1,5 +1,12 @@
 {
   "loopback-component-explorer": {
     "mountPath": "/explorer"
+  },
+  "loopback-component-auto-migrate": {
+    "enabled": true,
+    "raiseError": false,
+    "migration": "auto-migrate-data",
+    "models": ["User","AccessToken","ACL","RoleMapping","Role","book"],
+    "fixtures": "./seeds/"
   }
 }

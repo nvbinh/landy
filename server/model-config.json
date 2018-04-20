@@ -14,25 +14,25 @@
     ]
   },
   "User": {
-    "dataSource": "db"
+    "dataSource": "landy"
   },
   "AccessToken": {
-    "dataSource": "db",
+    "dataSource": "landy",
     "public": false
   },
   "ACL": {
-    "dataSource": "db",
+    "dataSource": "landy",
     "public": false
   },
   "RoleMapping": {
-    "dataSource": "db",
+    "dataSource": "landy",
     "public": false,
     "options": {
       "strictObjectIDCoercion": true
     }
   },
   "Role": {
-    "dataSource": "db",
+    "dataSource": "landy",
     "public": false
   },
   "book": {

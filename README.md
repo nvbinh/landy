@@ -4,3 +4,7 @@
 - structure/client - Build structure code, configuration
 - feature/latestnew - Build the new feature
 - bug/homebroken - Fix a bug
+
+### Auto Migrate Database
+npm install --save loopback-component-auto-migrate
+https://www.npmjs.com/package/loopback-component-auto-migrate
