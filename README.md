@@ -22,3 +22,6 @@ https://loopback.io/doc/en/lb2/Environment-specific-configuration.html
 
 Expose or disable the API in explorer
 https://loopback.io/doc/en/lb2/Exposing-models-over-REST.html​
+
+Create relations between tables
+https://loopback.io/doc/en/lb2/Define-model-relations.html#define-relations

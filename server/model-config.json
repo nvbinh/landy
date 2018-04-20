@@ -38,5 +38,13 @@
   "book": {
     "dataSource": "landy",
     "public": true
+  },
+  "Category": {
+    "dataSource": "landy",
+    "public": true
+  },
+  "News": {
+    "dataSource": "landy",
+    "public": true
   }
 }

@@ -6,7 +6,16 @@
     "enabled": true,
     "raiseError": false,
     "migration": "auto-update-data",
-    "models": ["User","AccessToken","ACL","RoleMapping","Role","book"],
+    "models": [
+      "User",
+      "AccessToken",
+      "ACL",
+      "RoleMapping",
+      "Role",
+      "book",
+      "Category",
+      "News"
+    ],
     "fixtures": "./seeds/"
   }
 }
