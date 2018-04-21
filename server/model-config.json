@@ -1,0 +1,50 @@
+{
+  "_meta": {
+    "sources": [
+      "loopback/common/models",
+      "loopback/server/models",
+      "../common/models",
+      "./models"
+    ],
+    "mixins": [
+      "loopback/common/mixins",
+      "loopback/server/mixins",
+      "../common/mixins",
+      "./mixins"
+    ]
+  },
+  "User": {
+    "dataSource": "landy"
+  },
+  "AccessToken": {
+    "dataSource": "landy",
+    "public": false
+  },
+  "ACL": {
+    "dataSource": "landy",
+    "public": false
+  },
+  "RoleMapping": {
+    "dataSource": "landy",
+    "public": false,
+    "options": {
+      "strictObjectIDCoercion": true
+    }
+  },
+  "Role": {
+    "dataSource": "landy",
+    "public": false
+  },
+  "book": {
+    "dataSource": "landy",
+    "public": true
+  },
+  "Category": {
+    "dataSource": "landy",
+    "public": true
+  },
+  "News": {
+    "dataSource": "landy",
+    "public": true
+  }
+}
