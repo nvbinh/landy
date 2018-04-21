@@ -25,3 +25,9 @@ https://loopback.io/doc/en/lb2/Exposing-models-over-REST.html​
 
 Create relations between tables
 https://loopback.io/doc/en/lb2/Define-model-relations.html#define-relations
+
+Get News with Category Name (relation between News and Category tables)
+https://stackoverflow.com/questions/30560735/getting-joined-data-from-strongloop-loopback
+http://localhost:3000/explorer/#!/News/News_findById
+params:
+{"include":"category"}

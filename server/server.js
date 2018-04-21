@@ -2,8 +2,14 @@
 
 var loopback = require('loopback');
 var boot = require('loopback-boot');
+var errorHandler = require('strong-error-handler');
 
 var app = module.exports = loopback();
+
+app.use(errorHandler({
+  debug: true,
+  log: true
+}));
 
 app.start = function() {
   // start the web server

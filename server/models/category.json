@@ -17,7 +17,7 @@
     "news": {
       "type": "hasMany",
       "model": "News",
-      "foreignKey": ""
+      "foreignKey": "categoryId"
     }
   },
   "acls": [],
