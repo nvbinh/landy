@@ -1,0 +1,10 @@
+{
+  "loopback-component-explorer": null,
+  "loopback-component-auto-migrate": {
+    "enabled": true,
+    "raiseError": false,
+    "migration": "auto-update-data",
+    "models": ["User","AccessToken","ACL","RoleMapping","Role","book"],
+    "fixtures": "./seeds/"
+  }
+}
