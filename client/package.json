@@ -1,6 +1,6 @@
 {
-  "name": "bingnguyen",
-  "license": "Karros",
+  "name": "landy",
+  "license": "landy",
   "version": "0.1",
   "scripts": {
     "lint": "eslint --ext .js --ext .jsx src",

@@ -8,7 +8,7 @@ const CaseSensitivePathsPlugin = require('case-sensitive-paths-webpack-plugin');
 const path = require("path");
 
 let BUILD_DIR = path.resolve(__dirname, "public");
-let APP_DIR = path.resolve(__dirname, "src/app");
+let APP_DIR = path.resolve(__dirname, "src");
 
 module.exports = (env, argv) => {
   const { ifProduction, ifNotProduction } = getIfUtils(argv.mode);

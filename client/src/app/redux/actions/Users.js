@@ -1,7 +1,8 @@
 import request from "../../utils/ApiUtils";
+import * as types from "../../constants/ActionTypes";
 
 const fetchUserSuccess = users => ({
-  type: "test",
+  type: types.GET_LOGGED_USER,
   users
 });
 

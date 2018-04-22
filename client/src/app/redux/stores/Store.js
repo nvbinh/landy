@@ -4,10 +4,10 @@ import logger from "redux-logger";
 import {syncHistoryWithStore, routerReducer} from "react-router-redux";
 import {BrowserHistory} from "react-router";
 import {bindActionCreators} from "redux";
-import {reducers} from "../reducers";
-import fetchUsers from "../actions/Users";
+import rootReducer from "../reducers/index";
+import fetchUser from "../actions/Users";
 
-const rootReducer = combineReducers({...reducers, routing: routerReducer});
+// const reducers = combineReducers({...rootReducer, routing: routerReducer});
 const enhancers = compose(
   applyMiddleware(thunk),
   applyMiddleware(logger),
@@ -18,5 +18,5 @@ const Store = createStore(rootReducer, {}, enhancers);
 export default Store;
 
 export function mapDispatchToProps(dispatch) {
-  return bindActionCreators(fetchUsers, dispatch);
+  return bindActionCreators(fetchUser, dispatch);
 };
