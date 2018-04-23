@@ -7,7 +7,8 @@ const fetchUserSuccess = users => ({
 });
 
 const fetchUser = (id) => async (dispatch) => {
-  const response = await request({method: "GET", url: "api/Users"});
+  const credentials = {"email":"bing@gmail.com","password":"bing"};
+  const response = await request({method: "POST", url: "api/Users/login", data: credentials});
 
   dispatch(fetchUserSuccess(response));
 };
