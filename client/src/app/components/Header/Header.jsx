@@ -12,10 +12,10 @@ class Header extends React.Component {
       <div>
         <ul>
           <li>
-            <NavLink exact to="/">Login</NavLink>
+            <NavLink exact to="/login">Login</NavLink>
           </li>
           <li>
-            <NavLink exact to="/">Sign Up</NavLink>
+            <NavLink exact to="/signup">Sign Up</NavLink>
           </li>
         </ul>
       </div>

@@ -7,14 +7,20 @@ import axios from 'axios';
 const client = axios.create({
   baseURL: 'https://localhost:3000',
   timeout: 1000,
+  withCredentials: true,
+  // transformRequest: [(data) => JSON.stringify(data.data)],
+  responseType: 'json',
   headers: {
-    'content-Type': 'application/json'
+    'Accept': 'application/json, text/plain, */*',
+    'content-Type': 'application/json;charset=UTF-8'
   }
 });
 
+axios.defaults.baseURL = "http://localhost:3000";
+
 const request = (options) => {
   const onSuccess = (response) => {
-    console.log(response.data);
+    // console.log(response.data);
     return response.data;
   };
 
@@ -32,7 +38,7 @@ const request = (options) => {
     return Promise.reject(error.response || error.message);
   };
 
-  return client(options)
+  return axios.request(options)
         .then(onSuccess)
         .catch(onError);
 };
