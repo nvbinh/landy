@@ -10,9 +10,9 @@ const fetchUserSuccess = users => ({
 
 const fetchUser = (id) => async (dispatch) => {
   const credentials = {email:"bing@gmail.com",password:"bing"};
-  const response = await request({method: "post", url: "api/Users/login", data: credentials});
+  const users = await request({method: "post", url: "api/Users/login", data: credentials});
 
-  dispatch(fetchUserSuccess(response));
+  dispatch(fetchUserSuccess(users));
 };
 
 export default fetchUser;

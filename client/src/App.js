@@ -84,6 +84,10 @@ class App extends React.Component {
     super();
   }
 
+  componentWillMount() {
+    // this.props.
+  }
+
   render() {
     const {location, history} = this.props;
 
@@ -96,8 +100,8 @@ class App extends React.Component {
           key={location.key}
           timeout={300}>
             <Switch location={location}>
-              <Route exact path="/" Component={FrontPage} />
-              <Route Component={NotFound} />
+              <Route exact path="/" component={FrontPage} />
+              <Route component={NotFound} />
             </Switch>
           </CSSTransition>
         </TransitionGroup>

@@ -25,7 +25,7 @@ class Front extends React.Component {
 const mapStateToProps = (state, props) => {
   return {
     ...props,
-    users: state.users
+    users: state.Users.users
   };
 };
 
