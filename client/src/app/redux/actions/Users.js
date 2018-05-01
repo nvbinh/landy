@@ -1,5 +1,6 @@
 import request from "../../utils/ApiUtils";
 import * as types from "../../constants/ActionTypes";
+import {UserService} from "../../services/user.service";
 
 import axios from 'axios';
 
@@ -8,11 +9,15 @@ const fetchUserSuccess = users => ({
   users
 });
 
-const fetchUser = (id) => async (dispatch) => {
-  const credentials = {email:"bing@gmail.com",password:"bing"};
-  const users = await request({method: "post", url: "api/Users/login", data: credentials});
+const fetchUser = (username, password) => (dispatch) => {
+  // const credentials = {email: username,password: password};
+  // const users = await request({method: "post", url: "api/Users/login", data: credentials});
+
+  const users = UserService.login(username, password);
 
   dispatch(fetchUserSuccess(users));
 };
 
-export default fetchUser;
+export const fetchUsedNeeded = (username, password) => (dispatch) => {
+  dispatch(fetchUser(username, password));
+};

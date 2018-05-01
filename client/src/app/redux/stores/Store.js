@@ -5,7 +5,16 @@ import {syncHistoryWithStore, routerReducer} from "react-router-redux";
 import {BrowserHistory} from "react-router";
 import {bindActionCreators} from "redux";
 import rootReducer from "../reducers/index";
-import fetchUser from "../actions/Users";
+import * as userActions from "../actions/Users";
+
+let defaultState = {  
+  user: {
+      username: "",
+      admin: false,
+      _id: ""
+  },
+  isAuthenticated: false
+}
 
 // const reducers = combineReducers({...rootReducer, routing: routerReducer});
 const enhancers = compose(
@@ -14,9 +23,9 @@ const enhancers = compose(
   window.devToolsExtension ? window.devToolsExtension() : f => f
 );
 
-const Store = createStore(rootReducer, {}, enhancers);
+const Store = createStore(rootReducer, defaultState, enhancers);
 export default Store;
 
 export function mapDispatchToProps(dispatch) {
-  return bindActionCreators(fetchUser, dispatch);
+  return bindActionCreators(userActions, dispatch);
 };

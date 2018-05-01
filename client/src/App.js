@@ -73,7 +73,8 @@ import {render} from "react-dom";
 import {Route, Switch, withRouter} from "react-router-dom";
 import {TransitionGroup, CSSTransition} from "react-transition-group";
 import {connect} from "react-redux";
-import {mapDispatchToProps} from "./app/redux/stores/Store";
+// import {mapDispatchToProps} from "./app/redux/stores/Store";
+import * as userActions from "./app/redux/actions/Users";
 import Header from "./app/components/Header";
 import FrontPage from "./FrontPage";
 
@@ -85,7 +86,7 @@ class App extends React.Component {
   }
 
   componentWillMount() {
-    // this.props.
+    this.props.fetchUsedNeeded("bing@gmail.com", "bing");
   }
 
   render() {
@@ -110,4 +111,4 @@ class App extends React.Component {
   }
 }
 
-export default withRouter(connect(null, mapDispatchToProps)(App));
+export default withRouter(connect(null, userActions)(App));

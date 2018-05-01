@@ -1,7 +1,9 @@
 import React from "react";
 import {connect} from "react-redux";
 import Header from "./app/components/Header";
-import {mapDispatchToProps} from "./app/redux/stores/Store";
+// import {mapDispatchToProps} from "./app/redux/stores/Store";
+import * as userActions from "./app/redux/actions/Users";
+// import * as creatorActions from "./app/redux/actions/Actions";
 
 class Front extends React.Component {
   constructor() {
@@ -9,7 +11,7 @@ class Front extends React.Component {
   }
 
   componentWillMount() {
-    console.log(this.props.users);
+    // console.log(this.props.users);
   }
 
   render() {
@@ -29,4 +31,4 @@ const mapStateToProps = (state, props) => {
   };
 };
 
-export default connect(mapStateToProps, mapDispatchToProps)(Front);
+export default connect(mapStateToProps, userActions)(Front);
