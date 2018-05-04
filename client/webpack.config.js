@@ -4,11 +4,13 @@ const { getIfUtils, removeEmpty } = require("webpack-config-utils");
 const Dotenv = require("dotenv-webpack");
 const compressionPlugin = require("compression-webpack-plugin");
 const HtmlWebpackPlugin = require("html-webpack-plugin");
+const HtmlWebpackExternalsPlugin = require("html-webpack-externals-plugin");
 const CaseSensitivePathsPlugin = require('case-sensitive-paths-webpack-plugin');
 const path = require("path");
 
 let BUILD_DIR = path.resolve(__dirname, "public");
 let APP_DIR = path.resolve(__dirname, "src");
+let NODE_DIR = path.resolve(__dirname, "node_modules");
 
 module.exports = (env, argv) => {
   const { ifProduction, ifNotProduction } = getIfUtils(argv.mode);
@@ -46,6 +48,14 @@ module.exports = (env, argv) => {
           removeComments: true,
           removeRedundantAttributes: true
         }
+      }),
+      new HtmlWebpackExternalsPlugin({
+        externals: [
+          {
+            module: "bootstrap",
+            entry: "dist/css/bootstrap.min.css"
+          }
+        ]
       }),
       ifProduction(
         new compressionPlugin({

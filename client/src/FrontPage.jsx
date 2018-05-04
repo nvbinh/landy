@@ -15,7 +15,7 @@ class Front extends React.Component {
   }
 
   render() {
-    console.log(this.props.users);
+    console.log(this.props.user);
     return (
       <div className="page">
         this is content page
@@ -27,7 +27,7 @@ class Front extends React.Component {
 const mapStateToProps = (state, props) => {
   return {
     ...props,
-    users: state.Users.users
+    user: state.Users.user
   };
 };
 

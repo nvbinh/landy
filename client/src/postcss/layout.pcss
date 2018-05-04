@@ -1,0 +1,63 @@
+@import "./variables.pcss";
+
+@media (--desktop) {
+  .transitionForwardEnter,
+  .transitionBackEnter {
+    transform: translateY(-30px);
+    opacity: 0;
+  }
+
+  .transitionForwardEnterActive,
+  .transitionBackEnterActive {
+    transform: translateY(0);
+    opacity: 1;
+  }
+
+  .transitionForwardExit,
+  .transitionBackExit {
+    transform: translateY(0);
+    opacity: 1;
+  }
+
+  .transitionForwardExitActive,
+  .transitionBackExitActive {
+    transform: translateY(30px);
+    opacity: 0;
+  }
+}
+
+@media (--mobile) {
+  .transitionForwardEnter {
+    transform: translateX(100%);
+  }
+
+  .transitionForwardEnterActive {
+    transform: translateX(0);
+  }
+
+  .transitionForwardExit {
+    transform: translateX(0);
+    overflow-y: hidden;
+  }
+
+  .transitionForwardExitActive {
+    transform: translateX(-100%);
+  }
+
+  .transitionBackEnter {
+    transform: translateX(-100%);
+  }
+
+  .transitionBackEnterActive {
+    transform: translateX(0);
+  }
+
+  .transitionBackExit {
+    transform: translateX(0);
+    overflow-y: hidden;
+  }
+
+  .transitionBackExitActive {
+    transform: translateX(100%);
+  }
+}

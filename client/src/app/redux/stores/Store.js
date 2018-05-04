@@ -13,7 +13,7 @@ let defaultState = {
       admin: false,
       _id: ""
   },
-  isAuthenticated: false
+  authenticated: false
 }
 
 // const reducers = combineReducers({...rootReducer, routing: routerReducer});
