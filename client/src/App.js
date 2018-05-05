@@ -1,69 +1,63 @@
-/* @flow */
-import React, { Component } from 'react';
-import Header from './app/views/common/Header';
-import { ExampleComponent, MessageList } from './app/components/button.component';
+import React from "react";
+import {render} from "react-dom";
+import {Route, Switch, withRouter} from "react-router-dom";
+import {TransitionGroup, CSSTransition} from "react-transition-group";
+import {connect} from "react-redux";
+// import {mapDispatchToProps} from "./app/redux/stores/Store";
+import * as userActions from "./app/redux/actions/Users";
+import Header from "./app/components/Header";
+import FrontPage from "./FrontPage";
+import LoginPage from "./app/pages/Login.Page";
+import Styles from "./postcss/layout.pcss";
 
-import './sass/App.scss';
+const NotFound = () => <h1>404 error..., page not found</h1>;
 
-class App extends Component {
-  static getPasswords() {
-    // Get the passwords and store them in state
-    // fetch('/api/passwords')
-    //   .then(res => res.json())
-    //   .then(passwords => this.setState({ passwords }));
+class App extends React.Component {
+  constructor() {
+    super();
   }
-  // Initialize state
-  constructor(props) {
-    super(props);
-    this.state = { passwords: [] };
-  }
 
-  // Fetch passwords after first mount
-  componentDidMount() {
-    // this.getPasswords();
+  componentWillMount() {
+    this.props.fetchUsedNeeded("bing@gmail.com", "bing");
   }
 
   render() {
-    const { passwords } = this.state;
-
-    <span style="background-color: #ffff00;">handleSubmit = () => { console.log("this is a test") }</span>
+    const {location, history} = this.props;
 
     return (
-      <div className="App">
+      <div>
         <Header />
-
-        {/* Render the passwords if we have them */}
-
-        <MessageList />
-
-        {passwords.length ? (
-          <div>
-            <h1>5 Passwords.</h1>
-            <ul className="passwords">
-              {passwords.map(password =>
-                (
-                  <li>
-                    { password }
-                  </li>
-                )
-              )}
-            </ul>
-            <button className="more" onClick={ this.getPasswords }>
-              Get More
-            </button>
-          </div>
-        ) : (
-          // Render a helpful message otherwise
-          <div>
-            <h1>No passwords :(</h1>
-            <button className="more" onClick={ this.getPasswords }>
-              Try Again?
-            </button>
-          </div>
-        )}
+        <TransitionGroup className="page-wrapper">
+        <CSSTransition
+          in={true}
+          key={location.key}
+          classNames={
+            history.action === "POP"
+              ? {
+                  enter: Styles.transitionBackEnter,
+                  enterActive: Styles.transitionBackEnterActive,
+                  exit: Styles.transitionBackExit,
+                  exitActive: Styles.transitionBackExitActive
+                }
+              : {
+                  enter: Styles.transitionForwardEnter,
+                  enterActive: Styles.transitionForwardEnterActive,
+                  exit: Styles.transitionForwardExit,
+                  exitActive: Styles.transitionForwardExitActive
+                }
+          }
+          timeout={300}
+          >
+            <Switch location={location}>
+              <Route exact path="/" component={FrontPage} />
+              <Route path="/login" component={LoginPage} />
+              <Route component={NotFound} />
+            </Switch>
+          </CSSTransition>
+        </TransitionGroup>
       </div>
     );
   }
 }
 
-export default App;
+export default withRouter(connect(null, userActions)(App));
