@@ -8,16 +8,21 @@
     "dev": "webpack-dev-server --mode development --progress --colors",
     "build:dev": "webpack --mode development --progress --colors",
     "build:prod": "webpack --mode production --progress --colors",
-    "postinstall": "webpack --mode production --progress --colors"
+    "postinstall": "webpack --mode production --progress --colors",
+    "test": "jest"
   },
   "dependencies": {
     "axios": "^0.14.0",
+    "babel-jest": "^22.4.3",
     "babel-polyfill": "^6.23.0",
-    "babel-preset-stage-0": "^6.24.1",
     "bootstrap": "^4.1.1",
     "classnames": "^2.2.5",
+    "enzyme": "^3.3.0",
+    "enzyme-adapter-react-16": "^1.1.1",
     "express": "^4.16.2",
     "html-webpack-externals-plugin": "^3.7.0",
+    "jest": "^22.4.3",
+    "jest-enzyme": "^6.0.0",
     "material-design-icons": "^3.0.1",
     "normalize.css": "^6.0.0",
     "prop-types": "^15.6.1",
