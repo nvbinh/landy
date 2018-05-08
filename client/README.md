@@ -7,3 +7,6 @@ The component is connected to redux via connect()(Comp)
 
 ### createStore, reducer, enhancer
 https://redux.js.org/api-reference/createstore#createstorereducer-preloadedstate-enhancer
+
+### Form Validation
+https://github.com/lonelyplanet/react-validate-form
