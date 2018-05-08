@@ -4,6 +4,6 @@ import App from './App';
 
 describe("reviews", () => {
   it('renders without crashing', () => {
-    
+    expect(true).toBe(true);
   });
 });
