@@ -1,6 +1,6 @@
 import React from "react";
 import PropTypes from "prop-types";
-import {connect} from "react-redux";
+// import {connect} from "react-redux";
 import LoginForm from "./forms/Login.Form";
 
 class LoginPage extends React.Component {
@@ -18,10 +18,10 @@ class LoginPage extends React.Component {
 }
 
 
-const mapStateToProps = (state, props) => {
-  return {
-    ...props
-  };
-};
+// const mapStateToProps = (state, props) => {
+//   return {
+//     ...props
+//   };
+// };
 
-export default connect(mapStateToProps)(LoginPage);
+export default LoginPage;

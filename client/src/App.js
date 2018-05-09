@@ -18,7 +18,7 @@ class App extends React.Component {
   }
 
   componentWillMount() {
-    this.props.fetchUsedNeeded("bing@gmail.com", "bing");
+    
   }
 
   render() {
@@ -60,4 +60,4 @@ class App extends React.Component {
   }
 }
 
-export default withRouter(connect(null, userActions)(App));
+export default withRouter(App);

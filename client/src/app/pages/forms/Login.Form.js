@@ -2,13 +2,20 @@ import React from "react";
 import {Control, Form, actions, Errors} from "react-redux-form";
 import {connect} from "react-redux";
 import Styles from "./Login.Form.pcss";
+import * as userActions from "../../redux/actions/Users";
+import validator from "validator";
 
 class LoginForm extends React.Component {
   handleSubmit(userinfo) {
     console.log(userinfo);
+    this.props.fetchUsedNeeded("bing@gmail.com", "bing");
   }
 
   render() {
+    const isEmail = (val) => {
+      return validator.isEmail(val);
+    };
+
     return (
       <Form
         model="userinfo"
@@ -20,7 +27,8 @@ class LoginForm extends React.Component {
           show="touched"
           messages={{
             valueMissing: 'Username is required',
-            maxLength: 'Must be 15 characters or less'
+            maxLength: 'Must be 15 characters or less',
+            isEmail: 'Email is not correct format'
           }}
         />
         <div className="form-group">
@@ -30,7 +38,10 @@ class LoginForm extends React.Component {
             className="form-control"
             placeholder="Enter email"
             required
-            validators={{ maxLength: (val) => val.length <= 15 }}
+            validators={{
+              maxLength: (val) => val.length <= 15,
+              isEmail: (val) => isEmail(val)
+            }}
             validateOn="blur" />
         </div>
         <div className="form-group">
@@ -56,4 +67,4 @@ const mapStateToProps = (state, props) => {
   };
 };
 
-export default connect(mapStateToProps)(LoginForm);
+export default connect(mapStateToProps, userActions)(LoginForm);

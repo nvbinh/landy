@@ -14503,6 +14503,375 @@ __webpack_require__.r(__webpack_exports__);
 
 /***/ }),
 
+/***/ "./node_modules/icepick/icepick.js":
+/*!*****************************************!*\
+  !*** ./node_modules/icepick/icepick.js ***!
+  \*****************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+/**
+ * This allows you to work with object hierarchies that have been frozen
+ * with Object.freeze().  "get" operations can use the normal JS syntax,
+ * but operations that modify the data will have to return partial copies of
+ * the structure. The portions of the structure that did not change will
+ * === their previous values.
+ *
+ * Inspired by clojure/mori and Immutable.js
+ */
+
+
+
+var i = exports;
+
+// we only care about objects or arrays for now
+function weCareAbout(val) {
+  return null !== val &&
+    (Array.isArray(val) ||
+      // This will skip objects created with `new Foo()`
+      // and objects created with `Object.create(proto)`
+      // The benefit is ignoring DOM elements and event emitters,
+      // which are often circular.
+      isObjectLike(val));
+}
+
+function isObjectLike(val) {
+  return typeof val === "object" &&
+    val.constructor === Object &&
+    Object.getPrototypeOf(val) === Object.prototype;
+}
+
+
+function arrayClone(arr) {
+  var index = 0,
+    length = arr.length,
+    result = Array(length);
+
+  for (; index < length; index += 1) {
+    result[index] = arr[index];
+  }
+  return result;
+}
+
+function objClone(obj) {
+  var index = 0,
+    keys = Object.keys(obj),
+    length = keys.length,
+    key,
+    result = {};
+
+  for (; index < length; index += 1) {
+    key = keys[index];
+    result[key] = obj[key];
+  }
+  return result;
+}
+
+function clone(coll) {
+  if (Array.isArray(coll)) {
+    return arrayClone(coll);
+  } else {
+    return objClone(coll);
+  }
+}
+
+function freezeIfNeeded(coll) {
+  if (
+      weCareAbout(coll) &&
+      (
+        !Object.isFrozen(coll) &&
+        "development" !== "production"
+      )) {
+    return baseFreeze(coll, []);
+  }
+  return coll;
+}
+
+function _freeze(coll) {
+  if (false) {}
+  if (typeof coll === "object") {
+    return Object.freeze(coll);
+  } else {
+    return coll;
+  }
+}
+
+function baseFreeze(coll, prevNodes) {
+  if (prevNodes.some(function (node) { return node === coll; })) {
+    throw new Error("object has a reference cycle");
+  }
+
+  Object.freeze(coll);
+  prevNodes.push(coll);
+  Object.keys(coll).forEach(function (key) {
+    var prop = coll[key];
+    if (weCareAbout(prop)) {
+      baseFreeze(prop, prevNodes);
+    }
+  });
+  prevNodes.pop();
+
+  return coll;
+}
+
+/**
+ * recrursively freeze an object and all its child objects
+ * @param  {Object|Array} coll
+ * @return {Object|Array}
+ */
+exports.freeze = function freeze(coll) {
+  if (false) {}
+  return baseFreeze(coll, []);
+};
+
+/**
+ * recursively un-freeze an object, by cloning frozen collections
+ * @param  {[type]} coll [description]
+ * @return {[type]}      [description]
+ */
+exports.thaw = function thaw(coll) {
+  if (weCareAbout(coll) && Object.isFrozen(coll)) {
+    var newColl = clone(coll);
+    Object.keys(newColl).forEach(function (key) {
+      newColl[key] = thaw(newColl[key]);
+    });
+    return newColl;
+  }
+  return coll;
+};
+
+/**
+ * set a value on an object or array
+ * @param  {Object|Array}  coll
+ * @param  {String|Number} key   Key or index
+ * @param  {Object}        value
+ * @return {Object|Array}        new object hierarchy with modifications
+ */
+exports.assoc = function assoc(coll, key, value) {
+  if (coll[key] === value) {
+    return _freeze(coll);
+  }
+
+  var newObj = clone(coll);
+
+  newObj[key] = freezeIfNeeded(value);
+
+  return _freeze(newObj);
+
+};
+exports.set = exports.assoc;
+
+/**
+ * un-set a value on an object or array
+ * @param  {Object|Array}  coll
+ * @param  {String|Number} key  Key or Index
+ * @return {Object|Array}       New object or array
+ */
+exports.dissoc = function dissoc(coll, key) {
+  var newObj = clone(coll);
+
+  delete newObj[key];
+
+  return _freeze(newObj);
+};
+exports.unset = exports.dissoc;
+
+/**
+ * set a value deep in a hierarchical structure
+ * @param  {Object|Array} coll
+ * @param  {Array}        path    A list of keys to traverse
+ * @param  {Object}       value
+ * @return {Object|Array}       new object hierarchy with modifications
+ */
+exports.assocIn = function assocIn(coll, path, value) {
+  var key0 = path[0];
+  if (path.length === 1) {
+    // simplest case is a 1-element array.  Just a simple assoc.
+    return i.assoc(coll, key0, value);
+  } else {
+    // break the problem down.  Assoc this object with the first key
+    // and the result of assocIn with the rest of the keys
+    return i.assoc(coll, key0, assocIn(coll[key0] || {}, path.slice(1), value));
+  }
+};
+exports.setIn = exports.assocIn;
+
+/**
+ * get an object from a hierachy based on an array of keys
+ * @param  {Object|Array} coll
+ * @param  {Array}        path    list of keys
+ * @return {Object}       value, or undefined
+ */
+function baseGet(coll, path) {
+  return (path || []).reduce(function (curr, key) {
+    if (!curr) { return; }
+    return curr[key];
+  }, coll);
+}
+
+exports.getIn = baseGet;
+
+/**
+ * Update a value in a hierarchy
+ * @param  {Object|Array}   coll
+ * @param  {Array}          path     list of keys
+ * @param  {Function} callback The existing value with be passed to this.
+ *                             Return the new value to set
+ * @return {Object|Array}      new object hierarchy with modifications
+ */
+exports.updateIn = function updateIn(coll, path, callback) {
+  var existingVal = baseGet(coll, path);
+  return i.assocIn(coll, path, callback(existingVal));
+};
+
+
+// generate wrappers for the mutative array methods
+["push", "unshift", "pop", "shift", "reverse", "sort"]
+.forEach(function (methodName) {
+  exports[methodName] = function (arr, val) {
+    var newArr = arrayClone(arr);
+
+    newArr[methodName](freezeIfNeeded(val));
+
+    return _freeze(newArr);
+  };
+
+  exports[methodName].displayName = "icepick." + methodName;
+});
+
+// splice is special because it is variadic
+exports.splice = function splice(arr/*, args*/) {
+  var newArr = arrayClone(arr),
+    args = rest(arguments).map(freezeIfNeeded);
+
+  newArr.splice.apply(newArr, args);
+
+  return _freeze(newArr);
+};
+
+// slice is non-mutative
+exports.slice = function slice(arr, arg1, arg2) {
+  var newArr = arr.slice(arg1, arg2);
+
+  return _freeze(newArr);
+};
+
+["map", "filter"].forEach(function (methodName) {
+  exports[methodName] = function (fn, arr) {
+    var newArr = arr[methodName](fn);
+
+    return _freeze(newArr);
+  };
+
+  exports[methodName].displayName = "icepick." + methodName;
+});
+
+exports.extend =
+exports.assign = function assign(/*...objs*/) {
+  var newObj = rest(arguments).reduce(singleAssign, arguments[0]);
+
+  return _freeze(newObj);
+};
+
+function singleAssign(obj1, obj2) {
+  return Object.keys(obj2).reduce(function (obj, key) {
+    return i.assoc(obj, key, obj2[key]);
+  }, obj1);
+}
+
+exports.merge = merge;
+function merge(target, source, resolver) {
+  if (target == null || source == null) {
+    return target;
+  }
+  return Object.keys(source).reduce(function (obj, key) {
+    var sourceVal = source[key];
+    var targetVal = obj[key];
+
+    var resolvedSourceVal =
+      resolver ? resolver(targetVal, sourceVal, key) : sourceVal;
+
+    if (weCareAbout(sourceVal) && weCareAbout(targetVal)) {
+      // if they are both frozen and reference equal, assume they are deep equal
+      if ((
+            (Object.isFrozen(resolvedSourceVal) &&
+              Object.isFrozen(targetVal)) ||
+            "development" === "production"
+          ) &&
+          resolvedSourceVal === targetVal) {
+        return obj;
+      }
+      if (Array.isArray(sourceVal)) {
+        return i.assoc(obj, key, resolvedSourceVal);
+      }
+      // recursively merge pairs of objects
+      return assocIfDifferent(obj, key,
+        merge(targetVal, resolvedSourceVal, resolver));
+    }
+
+    // primitive values, stuff with prototypes
+    return assocIfDifferent(obj, key, resolvedSourceVal);
+  }, target);
+}
+
+function assocIfDifferent(target, key, value) {
+  if (target[key] === value) {
+    return target;
+  }
+  return i.assoc(target, key, value);
+}
+
+function _slice(array, start) {
+  var begin = start || 0;
+  var len = array.length;
+  len -= begin;
+  len = len < 0 ? 0 : len;
+  var result = new Array(len);
+  for (var i = 0; i < len; i += 1) {
+    result[i] = array[i + begin];
+  }
+  return result;
+}
+
+
+function rest(args) {
+  return _slice(args, 1);
+}
+
+
+var chainProto = {
+  value: function value() {
+    return this.val;
+  },
+  thru: function thru(fn) {
+    this.val = freezeIfNeeded(fn(this.val));
+    return this;
+  }
+};
+
+Object.keys(exports).forEach(function (methodName) {
+  chainProto[methodName] = function (/*...args*/) {
+    var args = _slice(arguments);
+    args.unshift(this.val);
+    this.val = exports[methodName].apply(null, args);
+    return this;
+  };
+});
+
+exports.chain = function chain(val) {
+  var wrapped = Object.create(chainProto);
+  wrapped.val = val;
+  return wrapped;
+};
+
+// for testing
+exports._weCareAbout = weCareAbout;
+exports._slice = _slice;
+
+
+/***/ }),
+
 /***/ "./node_modules/invariant/browser.js":
 /*!*******************************************!*\
   !*** ./node_modules/invariant/browser.js ***!
@@ -14934,888 +15303,41 @@ function isPlainObject(value) {
 
 /***/ }),
 
-/***/ "./node_modules/lodash/_Hash.js":
-/*!**************************************!*\
-  !*** ./node_modules/lodash/_Hash.js ***!
-  \**************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var hashClear = __webpack_require__(/*! ./_hashClear */ "./node_modules/lodash/_hashClear.js"),
-    hashDelete = __webpack_require__(/*! ./_hashDelete */ "./node_modules/lodash/_hashDelete.js"),
-    hashGet = __webpack_require__(/*! ./_hashGet */ "./node_modules/lodash/_hashGet.js"),
-    hashHas = __webpack_require__(/*! ./_hashHas */ "./node_modules/lodash/_hashHas.js"),
-    hashSet = __webpack_require__(/*! ./_hashSet */ "./node_modules/lodash/_hashSet.js");
-
-/**
- * Creates a hash object.
- *
- * @private
- * @constructor
- * @param {Array} [entries] The key-value pairs to cache.
- */
-function Hash(entries) {
-  var index = -1,
-      length = entries == null ? 0 : entries.length;
-
-  this.clear();
-  while (++index < length) {
-    var entry = entries[index];
-    this.set(entry[0], entry[1]);
-  }
-}
-
-// Add methods to `Hash`.
-Hash.prototype.clear = hashClear;
-Hash.prototype['delete'] = hashDelete;
-Hash.prototype.get = hashGet;
-Hash.prototype.has = hashHas;
-Hash.prototype.set = hashSet;
-
-module.exports = Hash;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_ListCache.js":
-/*!*******************************************!*\
-  !*** ./node_modules/lodash/_ListCache.js ***!
-  \*******************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var listCacheClear = __webpack_require__(/*! ./_listCacheClear */ "./node_modules/lodash/_listCacheClear.js"),
-    listCacheDelete = __webpack_require__(/*! ./_listCacheDelete */ "./node_modules/lodash/_listCacheDelete.js"),
-    listCacheGet = __webpack_require__(/*! ./_listCacheGet */ "./node_modules/lodash/_listCacheGet.js"),
-    listCacheHas = __webpack_require__(/*! ./_listCacheHas */ "./node_modules/lodash/_listCacheHas.js"),
-    listCacheSet = __webpack_require__(/*! ./_listCacheSet */ "./node_modules/lodash/_listCacheSet.js");
-
-/**
- * Creates an list cache object.
- *
- * @private
- * @constructor
- * @param {Array} [entries] The key-value pairs to cache.
- */
-function ListCache(entries) {
-  var index = -1,
-      length = entries == null ? 0 : entries.length;
-
-  this.clear();
-  while (++index < length) {
-    var entry = entries[index];
-    this.set(entry[0], entry[1]);
-  }
-}
-
-// Add methods to `ListCache`.
-ListCache.prototype.clear = listCacheClear;
-ListCache.prototype['delete'] = listCacheDelete;
-ListCache.prototype.get = listCacheGet;
-ListCache.prototype.has = listCacheHas;
-ListCache.prototype.set = listCacheSet;
-
-module.exports = ListCache;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_Map.js":
-/*!*************************************!*\
-  !*** ./node_modules/lodash/_Map.js ***!
-  \*************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var getNative = __webpack_require__(/*! ./_getNative */ "./node_modules/lodash/_getNative.js"),
-    root = __webpack_require__(/*! ./_root */ "./node_modules/lodash/_root.js");
-
-/* Built-in method references that are verified to be native. */
-var Map = getNative(root, 'Map');
-
-module.exports = Map;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_MapCache.js":
+/***/ "./node_modules/lodash.get/index.js":
 /*!******************************************!*\
-  !*** ./node_modules/lodash/_MapCache.js ***!
+  !*** ./node_modules/lodash.get/index.js ***!
   \******************************************/
 /*! no static exports found */
 /***/ (function(module, exports, __webpack_require__) {
 
-var mapCacheClear = __webpack_require__(/*! ./_mapCacheClear */ "./node_modules/lodash/_mapCacheClear.js"),
-    mapCacheDelete = __webpack_require__(/*! ./_mapCacheDelete */ "./node_modules/lodash/_mapCacheDelete.js"),
-    mapCacheGet = __webpack_require__(/*! ./_mapCacheGet */ "./node_modules/lodash/_mapCacheGet.js"),
-    mapCacheHas = __webpack_require__(/*! ./_mapCacheHas */ "./node_modules/lodash/_mapCacheHas.js"),
-    mapCacheSet = __webpack_require__(/*! ./_mapCacheSet */ "./node_modules/lodash/_mapCacheSet.js");
-
-/**
- * Creates a map cache object to store key-value pairs.
- *
- * @private
- * @constructor
- * @param {Array} [entries] The key-value pairs to cache.
+/* WEBPACK VAR INJECTION */(function(global) {/**
+ * lodash (Custom Build) <https://lodash.com/>
+ * Build: `lodash modularize exports="npm" -o ./`
+ * Copyright jQuery Foundation and other contributors <https://jquery.org/>
+ * Released under MIT license <https://lodash.com/license>
+ * Based on Underscore.js 1.8.3 <http://underscorejs.org/LICENSE>
+ * Copyright Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
  */
-function MapCache(entries) {
-  var index = -1,
-      length = entries == null ? 0 : entries.length;
 
-  this.clear();
-  while (++index < length) {
-    var entry = entries[index];
-    this.set(entry[0], entry[1]);
-  }
-}
+/** Used as the `TypeError` message for "Functions" methods. */
+var FUNC_ERROR_TEXT = 'Expected a function';
 
-// Add methods to `MapCache`.
-MapCache.prototype.clear = mapCacheClear;
-MapCache.prototype['delete'] = mapCacheDelete;
-MapCache.prototype.get = mapCacheGet;
-MapCache.prototype.has = mapCacheHas;
-MapCache.prototype.set = mapCacheSet;
+/** Used to stand-in for `undefined` hash values. */
+var HASH_UNDEFINED = '__lodash_hash_undefined__';
 
-module.exports = MapCache;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_Set.js":
-/*!*************************************!*\
-  !*** ./node_modules/lodash/_Set.js ***!
-  \*************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var getNative = __webpack_require__(/*! ./_getNative */ "./node_modules/lodash/_getNative.js"),
-    root = __webpack_require__(/*! ./_root */ "./node_modules/lodash/_root.js");
-
-/* Built-in method references that are verified to be native. */
-var Set = getNative(root, 'Set');
-
-module.exports = Set;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_SetCache.js":
-/*!******************************************!*\
-  !*** ./node_modules/lodash/_SetCache.js ***!
-  \******************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var MapCache = __webpack_require__(/*! ./_MapCache */ "./node_modules/lodash/_MapCache.js"),
-    setCacheAdd = __webpack_require__(/*! ./_setCacheAdd */ "./node_modules/lodash/_setCacheAdd.js"),
-    setCacheHas = __webpack_require__(/*! ./_setCacheHas */ "./node_modules/lodash/_setCacheHas.js");
-
-/**
- *
- * Creates an array cache object to store unique values.
- *
- * @private
- * @constructor
- * @param {Array} [values] The values to cache.
- */
-function SetCache(values) {
-  var index = -1,
-      length = values == null ? 0 : values.length;
-
-  this.__data__ = new MapCache;
-  while (++index < length) {
-    this.add(values[index]);
-  }
-}
-
-// Add methods to `SetCache`.
-SetCache.prototype.add = SetCache.prototype.push = setCacheAdd;
-SetCache.prototype.has = setCacheHas;
-
-module.exports = SetCache;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_Stack.js":
-/*!***************************************!*\
-  !*** ./node_modules/lodash/_Stack.js ***!
-  \***************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var ListCache = __webpack_require__(/*! ./_ListCache */ "./node_modules/lodash/_ListCache.js"),
-    stackClear = __webpack_require__(/*! ./_stackClear */ "./node_modules/lodash/_stackClear.js"),
-    stackDelete = __webpack_require__(/*! ./_stackDelete */ "./node_modules/lodash/_stackDelete.js"),
-    stackGet = __webpack_require__(/*! ./_stackGet */ "./node_modules/lodash/_stackGet.js"),
-    stackHas = __webpack_require__(/*! ./_stackHas */ "./node_modules/lodash/_stackHas.js"),
-    stackSet = __webpack_require__(/*! ./_stackSet */ "./node_modules/lodash/_stackSet.js");
-
-/**
- * Creates a stack cache object to store key-value pairs.
- *
- * @private
- * @constructor
- * @param {Array} [entries] The key-value pairs to cache.
- */
-function Stack(entries) {
-  var data = this.__data__ = new ListCache(entries);
-  this.size = data.size;
-}
-
-// Add methods to `Stack`.
-Stack.prototype.clear = stackClear;
-Stack.prototype['delete'] = stackDelete;
-Stack.prototype.get = stackGet;
-Stack.prototype.has = stackHas;
-Stack.prototype.set = stackSet;
-
-module.exports = Stack;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_Symbol.js":
-/*!****************************************!*\
-  !*** ./node_modules/lodash/_Symbol.js ***!
-  \****************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var root = __webpack_require__(/*! ./_root */ "./node_modules/lodash/_root.js");
-
-/** Built-in value references. */
-var Symbol = root.Symbol;
-
-module.exports = Symbol;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_Uint8Array.js":
-/*!********************************************!*\
-  !*** ./node_modules/lodash/_Uint8Array.js ***!
-  \********************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var root = __webpack_require__(/*! ./_root */ "./node_modules/lodash/_root.js");
-
-/** Built-in value references. */
-var Uint8Array = root.Uint8Array;
-
-module.exports = Uint8Array;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_apply.js":
-/*!***************************************!*\
-  !*** ./node_modules/lodash/_apply.js ***!
-  \***************************************/
-/*! no static exports found */
-/***/ (function(module, exports) {
-
-/**
- * A faster alternative to `Function#apply`, this function invokes `func`
- * with the `this` binding of `thisArg` and the arguments of `args`.
- *
- * @private
- * @param {Function} func The function to invoke.
- * @param {*} thisArg The `this` binding of `func`.
- * @param {Array} args The arguments to invoke `func` with.
- * @returns {*} Returns the result of `func`.
- */
-function apply(func, thisArg, args) {
-  switch (args.length) {
-    case 0: return func.call(thisArg);
-    case 1: return func.call(thisArg, args[0]);
-    case 2: return func.call(thisArg, args[0], args[1]);
-    case 3: return func.call(thisArg, args[0], args[1], args[2]);
-  }
-  return func.apply(thisArg, args);
-}
-
-module.exports = apply;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_arrayIncludes.js":
-/*!***********************************************!*\
-  !*** ./node_modules/lodash/_arrayIncludes.js ***!
-  \***********************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var baseIndexOf = __webpack_require__(/*! ./_baseIndexOf */ "./node_modules/lodash/_baseIndexOf.js");
-
-/**
- * A specialized version of `_.includes` for arrays without support for
- * specifying an index to search from.
- *
- * @private
- * @param {Array} [array] The array to inspect.
- * @param {*} target The value to search for.
- * @returns {boolean} Returns `true` if `target` is found, else `false`.
- */
-function arrayIncludes(array, value) {
-  var length = array == null ? 0 : array.length;
-  return !!length && baseIndexOf(array, value, 0) > -1;
-}
-
-module.exports = arrayIncludes;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_arrayIncludesWith.js":
-/*!***************************************************!*\
-  !*** ./node_modules/lodash/_arrayIncludesWith.js ***!
-  \***************************************************/
-/*! no static exports found */
-/***/ (function(module, exports) {
-
-/**
- * This function is like `arrayIncludes` except that it accepts a comparator.
- *
- * @private
- * @param {Array} [array] The array to inspect.
- * @param {*} target The value to search for.
- * @param {Function} comparator The comparator invoked per element.
- * @returns {boolean} Returns `true` if `target` is found, else `false`.
- */
-function arrayIncludesWith(array, value, comparator) {
-  var index = -1,
-      length = array == null ? 0 : array.length;
-
-  while (++index < length) {
-    if (comparator(value, array[index])) {
-      return true;
-    }
-  }
-  return false;
-}
-
-module.exports = arrayIncludesWith;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_arrayLikeKeys.js":
-/*!***********************************************!*\
-  !*** ./node_modules/lodash/_arrayLikeKeys.js ***!
-  \***********************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var baseTimes = __webpack_require__(/*! ./_baseTimes */ "./node_modules/lodash/_baseTimes.js"),
-    isArguments = __webpack_require__(/*! ./isArguments */ "./node_modules/lodash/isArguments.js"),
-    isArray = __webpack_require__(/*! ./isArray */ "./node_modules/lodash/isArray.js"),
-    isBuffer = __webpack_require__(/*! ./isBuffer */ "./node_modules/lodash/isBuffer.js"),
-    isIndex = __webpack_require__(/*! ./_isIndex */ "./node_modules/lodash/_isIndex.js"),
-    isTypedArray = __webpack_require__(/*! ./isTypedArray */ "./node_modules/lodash/isTypedArray.js");
-
-/** Used for built-in method references. */
-var objectProto = Object.prototype;
-
-/** Used to check objects for own properties. */
-var hasOwnProperty = objectProto.hasOwnProperty;
-
-/**
- * Creates an array of the enumerable property names of the array-like `value`.
- *
- * @private
- * @param {*} value The value to query.
- * @param {boolean} inherited Specify returning inherited property names.
- * @returns {Array} Returns the array of property names.
- */
-function arrayLikeKeys(value, inherited) {
-  var isArr = isArray(value),
-      isArg = !isArr && isArguments(value),
-      isBuff = !isArr && !isArg && isBuffer(value),
-      isType = !isArr && !isArg && !isBuff && isTypedArray(value),
-      skipIndexes = isArr || isArg || isBuff || isType,
-      result = skipIndexes ? baseTimes(value.length, String) : [],
-      length = result.length;
-
-  for (var key in value) {
-    if ((inherited || hasOwnProperty.call(value, key)) &&
-        !(skipIndexes && (
-           // Safari 9 has enumerable `arguments.length` in strict mode.
-           key == 'length' ||
-           // Node.js 0.10 has enumerable non-index properties on buffers.
-           (isBuff && (key == 'offset' || key == 'parent')) ||
-           // PhantomJS 2 has enumerable non-index properties on typed arrays.
-           (isType && (key == 'buffer' || key == 'byteLength' || key == 'byteOffset')) ||
-           // Skip index properties.
-           isIndex(key, length)
-        ))) {
-      result.push(key);
-    }
-  }
-  return result;
-}
-
-module.exports = arrayLikeKeys;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_arrayPush.js":
-/*!*******************************************!*\
-  !*** ./node_modules/lodash/_arrayPush.js ***!
-  \*******************************************/
-/*! no static exports found */
-/***/ (function(module, exports) {
-
-/**
- * Appends the elements of `values` to `array`.
- *
- * @private
- * @param {Array} array The array to modify.
- * @param {Array} values The values to append.
- * @returns {Array} Returns `array`.
- */
-function arrayPush(array, values) {
-  var index = -1,
-      length = values.length,
-      offset = array.length;
-
-  while (++index < length) {
-    array[offset + index] = values[index];
-  }
-  return array;
-}
-
-module.exports = arrayPush;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_assignMergeValue.js":
-/*!**************************************************!*\
-  !*** ./node_modules/lodash/_assignMergeValue.js ***!
-  \**************************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var baseAssignValue = __webpack_require__(/*! ./_baseAssignValue */ "./node_modules/lodash/_baseAssignValue.js"),
-    eq = __webpack_require__(/*! ./eq */ "./node_modules/lodash/eq.js");
-
-/**
- * This function is like `assignValue` except that it doesn't assign
- * `undefined` values.
- *
- * @private
- * @param {Object} object The object to modify.
- * @param {string} key The key of the property to assign.
- * @param {*} value The value to assign.
- */
-function assignMergeValue(object, key, value) {
-  if ((value !== undefined && !eq(object[key], value)) ||
-      (value === undefined && !(key in object))) {
-    baseAssignValue(object, key, value);
-  }
-}
-
-module.exports = assignMergeValue;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_assignValue.js":
-/*!*********************************************!*\
-  !*** ./node_modules/lodash/_assignValue.js ***!
-  \*********************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var baseAssignValue = __webpack_require__(/*! ./_baseAssignValue */ "./node_modules/lodash/_baseAssignValue.js"),
-    eq = __webpack_require__(/*! ./eq */ "./node_modules/lodash/eq.js");
-
-/** Used for built-in method references. */
-var objectProto = Object.prototype;
-
-/** Used to check objects for own properties. */
-var hasOwnProperty = objectProto.hasOwnProperty;
-
-/**
- * Assigns `value` to `key` of `object` if the existing value is not equivalent
- * using [`SameValueZero`](http://ecma-international.org/ecma-262/7.0/#sec-samevaluezero)
- * for equality comparisons.
- *
- * @private
- * @param {Object} object The object to modify.
- * @param {string} key The key of the property to assign.
- * @param {*} value The value to assign.
- */
-function assignValue(object, key, value) {
-  var objValue = object[key];
-  if (!(hasOwnProperty.call(object, key) && eq(objValue, value)) ||
-      (value === undefined && !(key in object))) {
-    baseAssignValue(object, key, value);
-  }
-}
-
-module.exports = assignValue;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_assocIndexOf.js":
-/*!**********************************************!*\
-  !*** ./node_modules/lodash/_assocIndexOf.js ***!
-  \**********************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var eq = __webpack_require__(/*! ./eq */ "./node_modules/lodash/eq.js");
-
-/**
- * Gets the index at which the `key` is found in `array` of key-value pairs.
- *
- * @private
- * @param {Array} array The array to inspect.
- * @param {*} key The key to search for.
- * @returns {number} Returns the index of the matched value, else `-1`.
- */
-function assocIndexOf(array, key) {
-  var length = array.length;
-  while (length--) {
-    if (eq(array[length][0], key)) {
-      return length;
-    }
-  }
-  return -1;
-}
-
-module.exports = assocIndexOf;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_baseAssignValue.js":
-/*!*************************************************!*\
-  !*** ./node_modules/lodash/_baseAssignValue.js ***!
-  \*************************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var defineProperty = __webpack_require__(/*! ./_defineProperty */ "./node_modules/lodash/_defineProperty.js");
-
-/**
- * The base implementation of `assignValue` and `assignMergeValue` without
- * value checks.
- *
- * @private
- * @param {Object} object The object to modify.
- * @param {string} key The key of the property to assign.
- * @param {*} value The value to assign.
- */
-function baseAssignValue(object, key, value) {
-  if (key == '__proto__' && defineProperty) {
-    defineProperty(object, key, {
-      'configurable': true,
-      'enumerable': true,
-      'value': value,
-      'writable': true
-    });
-  } else {
-    object[key] = value;
-  }
-}
-
-module.exports = baseAssignValue;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_baseCreate.js":
-/*!********************************************!*\
-  !*** ./node_modules/lodash/_baseCreate.js ***!
-  \********************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var isObject = __webpack_require__(/*! ./isObject */ "./node_modules/lodash/isObject.js");
-
-/** Built-in value references. */
-var objectCreate = Object.create;
-
-/**
- * The base implementation of `_.create` without support for assigning
- * properties to the created object.
- *
- * @private
- * @param {Object} proto The object to inherit from.
- * @returns {Object} Returns the new object.
- */
-var baseCreate = (function() {
-  function object() {}
-  return function(proto) {
-    if (!isObject(proto)) {
-      return {};
-    }
-    if (objectCreate) {
-      return objectCreate(proto);
-    }
-    object.prototype = proto;
-    var result = new object;
-    object.prototype = undefined;
-    return result;
-  };
-}());
-
-module.exports = baseCreate;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_baseFindIndex.js":
-/*!***********************************************!*\
-  !*** ./node_modules/lodash/_baseFindIndex.js ***!
-  \***********************************************/
-/*! no static exports found */
-/***/ (function(module, exports) {
-
-/**
- * The base implementation of `_.findIndex` and `_.findLastIndex` without
- * support for iteratee shorthands.
- *
- * @private
- * @param {Array} array The array to inspect.
- * @param {Function} predicate The function invoked per iteration.
- * @param {number} fromIndex The index to search from.
- * @param {boolean} [fromRight] Specify iterating from right to left.
- * @returns {number} Returns the index of the matched value, else `-1`.
- */
-function baseFindIndex(array, predicate, fromIndex, fromRight) {
-  var length = array.length,
-      index = fromIndex + (fromRight ? 1 : -1);
-
-  while ((fromRight ? index-- : ++index < length)) {
-    if (predicate(array[index], index, array)) {
-      return index;
-    }
-  }
-  return -1;
-}
-
-module.exports = baseFindIndex;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_baseFlatten.js":
-/*!*********************************************!*\
-  !*** ./node_modules/lodash/_baseFlatten.js ***!
-  \*********************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var arrayPush = __webpack_require__(/*! ./_arrayPush */ "./node_modules/lodash/_arrayPush.js"),
-    isFlattenable = __webpack_require__(/*! ./_isFlattenable */ "./node_modules/lodash/_isFlattenable.js");
-
-/**
- * The base implementation of `_.flatten` with support for restricting flattening.
- *
- * @private
- * @param {Array} array The array to flatten.
- * @param {number} depth The maximum recursion depth.
- * @param {boolean} [predicate=isFlattenable] The function invoked per iteration.
- * @param {boolean} [isStrict] Restrict to values that pass `predicate` checks.
- * @param {Array} [result=[]] The initial result value.
- * @returns {Array} Returns the new flattened array.
- */
-function baseFlatten(array, depth, predicate, isStrict, result) {
-  var index = -1,
-      length = array.length;
-
-  predicate || (predicate = isFlattenable);
-  result || (result = []);
-
-  while (++index < length) {
-    var value = array[index];
-    if (depth > 0 && predicate(value)) {
-      if (depth > 1) {
-        // Recursively flatten arrays (susceptible to call stack limits).
-        baseFlatten(value, depth - 1, predicate, isStrict, result);
-      } else {
-        arrayPush(result, value);
-      }
-    } else if (!isStrict) {
-      result[result.length] = value;
-    }
-  }
-  return result;
-}
-
-module.exports = baseFlatten;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_baseFor.js":
-/*!*****************************************!*\
-  !*** ./node_modules/lodash/_baseFor.js ***!
-  \*****************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var createBaseFor = __webpack_require__(/*! ./_createBaseFor */ "./node_modules/lodash/_createBaseFor.js");
-
-/**
- * The base implementation of `baseForOwn` which iterates over `object`
- * properties returned by `keysFunc` and invokes `iteratee` for each property.
- * Iteratee functions may exit iteration early by explicitly returning `false`.
- *
- * @private
- * @param {Object} object The object to iterate over.
- * @param {Function} iteratee The function invoked per iteration.
- * @param {Function} keysFunc The function to get the keys of `object`.
- * @returns {Object} Returns `object`.
- */
-var baseFor = createBaseFor();
-
-module.exports = baseFor;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_baseGetTag.js":
-/*!********************************************!*\
-  !*** ./node_modules/lodash/_baseGetTag.js ***!
-  \********************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var Symbol = __webpack_require__(/*! ./_Symbol */ "./node_modules/lodash/_Symbol.js"),
-    getRawTag = __webpack_require__(/*! ./_getRawTag */ "./node_modules/lodash/_getRawTag.js"),
-    objectToString = __webpack_require__(/*! ./_objectToString */ "./node_modules/lodash/_objectToString.js");
+/** Used as references for various `Number` constants. */
+var INFINITY = 1 / 0;
 
 /** `Object#toString` result references. */
-var nullTag = '[object Null]',
-    undefinedTag = '[object Undefined]';
+var funcTag = '[object Function]',
+    genTag = '[object GeneratorFunction]',
+    symbolTag = '[object Symbol]';
 
-/** Built-in value references. */
-var symToStringTag = Symbol ? Symbol.toStringTag : undefined;
-
-/**
- * The base implementation of `getTag` without fallbacks for buggy environments.
- *
- * @private
- * @param {*} value The value to query.
- * @returns {string} Returns the `toStringTag`.
- */
-function baseGetTag(value) {
-  if (value == null) {
-    return value === undefined ? undefinedTag : nullTag;
-  }
-  return (symToStringTag && symToStringTag in Object(value))
-    ? getRawTag(value)
-    : objectToString(value);
-}
-
-module.exports = baseGetTag;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_baseIndexOf.js":
-/*!*********************************************!*\
-  !*** ./node_modules/lodash/_baseIndexOf.js ***!
-  \*********************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var baseFindIndex = __webpack_require__(/*! ./_baseFindIndex */ "./node_modules/lodash/_baseFindIndex.js"),
-    baseIsNaN = __webpack_require__(/*! ./_baseIsNaN */ "./node_modules/lodash/_baseIsNaN.js"),
-    strictIndexOf = __webpack_require__(/*! ./_strictIndexOf */ "./node_modules/lodash/_strictIndexOf.js");
-
-/**
- * The base implementation of `_.indexOf` without `fromIndex` bounds checks.
- *
- * @private
- * @param {Array} array The array to inspect.
- * @param {*} value The value to search for.
- * @param {number} fromIndex The index to search from.
- * @returns {number} Returns the index of the matched value, else `-1`.
- */
-function baseIndexOf(array, value, fromIndex) {
-  return value === value
-    ? strictIndexOf(array, value, fromIndex)
-    : baseFindIndex(array, baseIsNaN, fromIndex);
-}
-
-module.exports = baseIndexOf;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_baseIsArguments.js":
-/*!*************************************************!*\
-  !*** ./node_modules/lodash/_baseIsArguments.js ***!
-  \*************************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var baseGetTag = __webpack_require__(/*! ./_baseGetTag */ "./node_modules/lodash/_baseGetTag.js"),
-    isObjectLike = __webpack_require__(/*! ./isObjectLike */ "./node_modules/lodash/isObjectLike.js");
-
-/** `Object#toString` result references. */
-var argsTag = '[object Arguments]';
-
-/**
- * The base implementation of `_.isArguments`.
- *
- * @private
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is an `arguments` object,
- */
-function baseIsArguments(value) {
-  return isObjectLike(value) && baseGetTag(value) == argsTag;
-}
-
-module.exports = baseIsArguments;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_baseIsNaN.js":
-/*!*******************************************!*\
-  !*** ./node_modules/lodash/_baseIsNaN.js ***!
-  \*******************************************/
-/*! no static exports found */
-/***/ (function(module, exports) {
-
-/**
- * The base implementation of `_.isNaN` without support for number objects.
- *
- * @private
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is `NaN`, else `false`.
- */
-function baseIsNaN(value) {
-  return value !== value;
-}
-
-module.exports = baseIsNaN;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_baseIsNative.js":
-/*!**********************************************!*\
-  !*** ./node_modules/lodash/_baseIsNative.js ***!
-  \**********************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var isFunction = __webpack_require__(/*! ./isFunction */ "./node_modules/lodash/isFunction.js"),
-    isMasked = __webpack_require__(/*! ./_isMasked */ "./node_modules/lodash/_isMasked.js"),
-    isObject = __webpack_require__(/*! ./isObject */ "./node_modules/lodash/isObject.js"),
-    toSource = __webpack_require__(/*! ./_toSource */ "./node_modules/lodash/_toSource.js");
+/** Used to match property names within property paths. */
+var reIsDeepProp = /\.|\[(?:[^[\]]*|(["'])(?:(?!\1)[^\\]|\\.)*?\1)\]/,
+    reIsPlainProp = /^\w*$/,
+    reLeadingDot = /^\./,
+    rePropName = /[^.[\]]+|\[(?:(-?\d+(?:\.\d+)?)|(["'])((?:(?!\2)[^\\]|\\.)*?)\2)\]|(?=(?:\.|\[\])(?:\.|\[\]|$))/g;
 
 /**
  * Used to match `RegExp`
@@ -15823,1030 +15345,20 @@ var isFunction = __webpack_require__(/*! ./isFunction */ "./node_modules/lodash/
  */
 var reRegExpChar = /[\\^$.*+?()[\]{}|]/g;
 
+/** Used to match backslashes in property paths. */
+var reEscapeChar = /\\(\\)?/g;
+
 /** Used to detect host constructors (Safari). */
 var reIsHostCtor = /^\[object .+?Constructor\]$/;
 
-/** Used for built-in method references. */
-var funcProto = Function.prototype,
-    objectProto = Object.prototype;
-
-/** Used to resolve the decompiled source of functions. */
-var funcToString = funcProto.toString;
-
-/** Used to check objects for own properties. */
-var hasOwnProperty = objectProto.hasOwnProperty;
-
-/** Used to detect if a method is native. */
-var reIsNative = RegExp('^' +
-  funcToString.call(hasOwnProperty).replace(reRegExpChar, '\\$&')
-  .replace(/hasOwnProperty|(function).*?(?=\\\()| for .+?(?=\\\])/g, '$1.*?') + '$'
-);
-
-/**
- * The base implementation of `_.isNative` without bad shim checks.
- *
- * @private
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is a native function,
- *  else `false`.
- */
-function baseIsNative(value) {
-  if (!isObject(value) || isMasked(value)) {
-    return false;
-  }
-  var pattern = isFunction(value) ? reIsNative : reIsHostCtor;
-  return pattern.test(toSource(value));
-}
-
-module.exports = baseIsNative;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_baseIsTypedArray.js":
-/*!**************************************************!*\
-  !*** ./node_modules/lodash/_baseIsTypedArray.js ***!
-  \**************************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var baseGetTag = __webpack_require__(/*! ./_baseGetTag */ "./node_modules/lodash/_baseGetTag.js"),
-    isLength = __webpack_require__(/*! ./isLength */ "./node_modules/lodash/isLength.js"),
-    isObjectLike = __webpack_require__(/*! ./isObjectLike */ "./node_modules/lodash/isObjectLike.js");
-
-/** `Object#toString` result references. */
-var argsTag = '[object Arguments]',
-    arrayTag = '[object Array]',
-    boolTag = '[object Boolean]',
-    dateTag = '[object Date]',
-    errorTag = '[object Error]',
-    funcTag = '[object Function]',
-    mapTag = '[object Map]',
-    numberTag = '[object Number]',
-    objectTag = '[object Object]',
-    regexpTag = '[object RegExp]',
-    setTag = '[object Set]',
-    stringTag = '[object String]',
-    weakMapTag = '[object WeakMap]';
-
-var arrayBufferTag = '[object ArrayBuffer]',
-    dataViewTag = '[object DataView]',
-    float32Tag = '[object Float32Array]',
-    float64Tag = '[object Float64Array]',
-    int8Tag = '[object Int8Array]',
-    int16Tag = '[object Int16Array]',
-    int32Tag = '[object Int32Array]',
-    uint8Tag = '[object Uint8Array]',
-    uint8ClampedTag = '[object Uint8ClampedArray]',
-    uint16Tag = '[object Uint16Array]',
-    uint32Tag = '[object Uint32Array]';
-
-/** Used to identify `toStringTag` values of typed arrays. */
-var typedArrayTags = {};
-typedArrayTags[float32Tag] = typedArrayTags[float64Tag] =
-typedArrayTags[int8Tag] = typedArrayTags[int16Tag] =
-typedArrayTags[int32Tag] = typedArrayTags[uint8Tag] =
-typedArrayTags[uint8ClampedTag] = typedArrayTags[uint16Tag] =
-typedArrayTags[uint32Tag] = true;
-typedArrayTags[argsTag] = typedArrayTags[arrayTag] =
-typedArrayTags[arrayBufferTag] = typedArrayTags[boolTag] =
-typedArrayTags[dataViewTag] = typedArrayTags[dateTag] =
-typedArrayTags[errorTag] = typedArrayTags[funcTag] =
-typedArrayTags[mapTag] = typedArrayTags[numberTag] =
-typedArrayTags[objectTag] = typedArrayTags[regexpTag] =
-typedArrayTags[setTag] = typedArrayTags[stringTag] =
-typedArrayTags[weakMapTag] = false;
-
-/**
- * The base implementation of `_.isTypedArray` without Node.js optimizations.
- *
- * @private
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is a typed array, else `false`.
- */
-function baseIsTypedArray(value) {
-  return isObjectLike(value) &&
-    isLength(value.length) && !!typedArrayTags[baseGetTag(value)];
-}
-
-module.exports = baseIsTypedArray;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_baseKeysIn.js":
-/*!********************************************!*\
-  !*** ./node_modules/lodash/_baseKeysIn.js ***!
-  \********************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var isObject = __webpack_require__(/*! ./isObject */ "./node_modules/lodash/isObject.js"),
-    isPrototype = __webpack_require__(/*! ./_isPrototype */ "./node_modules/lodash/_isPrototype.js"),
-    nativeKeysIn = __webpack_require__(/*! ./_nativeKeysIn */ "./node_modules/lodash/_nativeKeysIn.js");
-
-/** Used for built-in method references. */
-var objectProto = Object.prototype;
-
-/** Used to check objects for own properties. */
-var hasOwnProperty = objectProto.hasOwnProperty;
-
-/**
- * The base implementation of `_.keysIn` which doesn't treat sparse arrays as dense.
- *
- * @private
- * @param {Object} object The object to query.
- * @returns {Array} Returns the array of property names.
- */
-function baseKeysIn(object) {
-  if (!isObject(object)) {
-    return nativeKeysIn(object);
-  }
-  var isProto = isPrototype(object),
-      result = [];
-
-  for (var key in object) {
-    if (!(key == 'constructor' && (isProto || !hasOwnProperty.call(object, key)))) {
-      result.push(key);
-    }
-  }
-  return result;
-}
-
-module.exports = baseKeysIn;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_baseMerge.js":
-/*!*******************************************!*\
-  !*** ./node_modules/lodash/_baseMerge.js ***!
-  \*******************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var Stack = __webpack_require__(/*! ./_Stack */ "./node_modules/lodash/_Stack.js"),
-    assignMergeValue = __webpack_require__(/*! ./_assignMergeValue */ "./node_modules/lodash/_assignMergeValue.js"),
-    baseFor = __webpack_require__(/*! ./_baseFor */ "./node_modules/lodash/_baseFor.js"),
-    baseMergeDeep = __webpack_require__(/*! ./_baseMergeDeep */ "./node_modules/lodash/_baseMergeDeep.js"),
-    isObject = __webpack_require__(/*! ./isObject */ "./node_modules/lodash/isObject.js"),
-    keysIn = __webpack_require__(/*! ./keysIn */ "./node_modules/lodash/keysIn.js");
-
-/**
- * The base implementation of `_.merge` without support for multiple sources.
- *
- * @private
- * @param {Object} object The destination object.
- * @param {Object} source The source object.
- * @param {number} srcIndex The index of `source`.
- * @param {Function} [customizer] The function to customize merged values.
- * @param {Object} [stack] Tracks traversed source values and their merged
- *  counterparts.
- */
-function baseMerge(object, source, srcIndex, customizer, stack) {
-  if (object === source) {
-    return;
-  }
-  baseFor(source, function(srcValue, key) {
-    if (isObject(srcValue)) {
-      stack || (stack = new Stack);
-      baseMergeDeep(object, source, key, srcIndex, baseMerge, customizer, stack);
-    }
-    else {
-      var newValue = customizer
-        ? customizer(object[key], srcValue, (key + ''), object, source, stack)
-        : undefined;
-
-      if (newValue === undefined) {
-        newValue = srcValue;
-      }
-      assignMergeValue(object, key, newValue);
-    }
-  }, keysIn);
-}
-
-module.exports = baseMerge;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_baseMergeDeep.js":
-/*!***********************************************!*\
-  !*** ./node_modules/lodash/_baseMergeDeep.js ***!
-  \***********************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var assignMergeValue = __webpack_require__(/*! ./_assignMergeValue */ "./node_modules/lodash/_assignMergeValue.js"),
-    cloneBuffer = __webpack_require__(/*! ./_cloneBuffer */ "./node_modules/lodash/_cloneBuffer.js"),
-    cloneTypedArray = __webpack_require__(/*! ./_cloneTypedArray */ "./node_modules/lodash/_cloneTypedArray.js"),
-    copyArray = __webpack_require__(/*! ./_copyArray */ "./node_modules/lodash/_copyArray.js"),
-    initCloneObject = __webpack_require__(/*! ./_initCloneObject */ "./node_modules/lodash/_initCloneObject.js"),
-    isArguments = __webpack_require__(/*! ./isArguments */ "./node_modules/lodash/isArguments.js"),
-    isArray = __webpack_require__(/*! ./isArray */ "./node_modules/lodash/isArray.js"),
-    isArrayLikeObject = __webpack_require__(/*! ./isArrayLikeObject */ "./node_modules/lodash/isArrayLikeObject.js"),
-    isBuffer = __webpack_require__(/*! ./isBuffer */ "./node_modules/lodash/isBuffer.js"),
-    isFunction = __webpack_require__(/*! ./isFunction */ "./node_modules/lodash/isFunction.js"),
-    isObject = __webpack_require__(/*! ./isObject */ "./node_modules/lodash/isObject.js"),
-    isPlainObject = __webpack_require__(/*! ./isPlainObject */ "./node_modules/lodash/isPlainObject.js"),
-    isTypedArray = __webpack_require__(/*! ./isTypedArray */ "./node_modules/lodash/isTypedArray.js"),
-    toPlainObject = __webpack_require__(/*! ./toPlainObject */ "./node_modules/lodash/toPlainObject.js");
-
-/**
- * A specialized version of `baseMerge` for arrays and objects which performs
- * deep merges and tracks traversed objects enabling objects with circular
- * references to be merged.
- *
- * @private
- * @param {Object} object The destination object.
- * @param {Object} source The source object.
- * @param {string} key The key of the value to merge.
- * @param {number} srcIndex The index of `source`.
- * @param {Function} mergeFunc The function to merge values.
- * @param {Function} [customizer] The function to customize assigned values.
- * @param {Object} [stack] Tracks traversed source values and their merged
- *  counterparts.
- */
-function baseMergeDeep(object, source, key, srcIndex, mergeFunc, customizer, stack) {
-  var objValue = object[key],
-      srcValue = source[key],
-      stacked = stack.get(srcValue);
-
-  if (stacked) {
-    assignMergeValue(object, key, stacked);
-    return;
-  }
-  var newValue = customizer
-    ? customizer(objValue, srcValue, (key + ''), object, source, stack)
-    : undefined;
-
-  var isCommon = newValue === undefined;
-
-  if (isCommon) {
-    var isArr = isArray(srcValue),
-        isBuff = !isArr && isBuffer(srcValue),
-        isTyped = !isArr && !isBuff && isTypedArray(srcValue);
-
-    newValue = srcValue;
-    if (isArr || isBuff || isTyped) {
-      if (isArray(objValue)) {
-        newValue = objValue;
-      }
-      else if (isArrayLikeObject(objValue)) {
-        newValue = copyArray(objValue);
-      }
-      else if (isBuff) {
-        isCommon = false;
-        newValue = cloneBuffer(srcValue, true);
-      }
-      else if (isTyped) {
-        isCommon = false;
-        newValue = cloneTypedArray(srcValue, true);
-      }
-      else {
-        newValue = [];
-      }
-    }
-    else if (isPlainObject(srcValue) || isArguments(srcValue)) {
-      newValue = objValue;
-      if (isArguments(objValue)) {
-        newValue = toPlainObject(objValue);
-      }
-      else if (!isObject(objValue) || (srcIndex && isFunction(objValue))) {
-        newValue = initCloneObject(srcValue);
-      }
-    }
-    else {
-      isCommon = false;
-    }
-  }
-  if (isCommon) {
-    // Recursively merge objects and arrays (susceptible to call stack limits).
-    stack.set(srcValue, newValue);
-    mergeFunc(newValue, srcValue, srcIndex, customizer, stack);
-    stack['delete'](srcValue);
-  }
-  assignMergeValue(object, key, newValue);
-}
-
-module.exports = baseMergeDeep;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_baseRest.js":
-/*!******************************************!*\
-  !*** ./node_modules/lodash/_baseRest.js ***!
-  \******************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var identity = __webpack_require__(/*! ./identity */ "./node_modules/lodash/identity.js"),
-    overRest = __webpack_require__(/*! ./_overRest */ "./node_modules/lodash/_overRest.js"),
-    setToString = __webpack_require__(/*! ./_setToString */ "./node_modules/lodash/_setToString.js");
-
-/**
- * The base implementation of `_.rest` which doesn't validate or coerce arguments.
- *
- * @private
- * @param {Function} func The function to apply a rest parameter to.
- * @param {number} [start=func.length-1] The start position of the rest parameter.
- * @returns {Function} Returns the new function.
- */
-function baseRest(func, start) {
-  return setToString(overRest(func, start, identity), func + '');
-}
-
-module.exports = baseRest;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_baseSetToString.js":
-/*!*************************************************!*\
-  !*** ./node_modules/lodash/_baseSetToString.js ***!
-  \*************************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var constant = __webpack_require__(/*! ./constant */ "./node_modules/lodash/constant.js"),
-    defineProperty = __webpack_require__(/*! ./_defineProperty */ "./node_modules/lodash/_defineProperty.js"),
-    identity = __webpack_require__(/*! ./identity */ "./node_modules/lodash/identity.js");
-
-/**
- * The base implementation of `setToString` without support for hot loop shorting.
- *
- * @private
- * @param {Function} func The function to modify.
- * @param {Function} string The `toString` result.
- * @returns {Function} Returns `func`.
- */
-var baseSetToString = !defineProperty ? identity : function(func, string) {
-  return defineProperty(func, 'toString', {
-    'configurable': true,
-    'enumerable': false,
-    'value': constant(string),
-    'writable': true
-  });
-};
-
-module.exports = baseSetToString;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_baseTimes.js":
-/*!*******************************************!*\
-  !*** ./node_modules/lodash/_baseTimes.js ***!
-  \*******************************************/
-/*! no static exports found */
-/***/ (function(module, exports) {
-
-/**
- * The base implementation of `_.times` without support for iteratee shorthands
- * or max array length checks.
- *
- * @private
- * @param {number} n The number of times to invoke `iteratee`.
- * @param {Function} iteratee The function invoked per iteration.
- * @returns {Array} Returns the array of results.
- */
-function baseTimes(n, iteratee) {
-  var index = -1,
-      result = Array(n);
-
-  while (++index < n) {
-    result[index] = iteratee(index);
-  }
-  return result;
-}
-
-module.exports = baseTimes;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_baseUnary.js":
-/*!*******************************************!*\
-  !*** ./node_modules/lodash/_baseUnary.js ***!
-  \*******************************************/
-/*! no static exports found */
-/***/ (function(module, exports) {
-
-/**
- * The base implementation of `_.unary` without support for storing metadata.
- *
- * @private
- * @param {Function} func The function to cap arguments for.
- * @returns {Function} Returns the new capped function.
- */
-function baseUnary(func) {
-  return function(value) {
-    return func(value);
-  };
-}
-
-module.exports = baseUnary;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_baseUniq.js":
-/*!******************************************!*\
-  !*** ./node_modules/lodash/_baseUniq.js ***!
-  \******************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var SetCache = __webpack_require__(/*! ./_SetCache */ "./node_modules/lodash/_SetCache.js"),
-    arrayIncludes = __webpack_require__(/*! ./_arrayIncludes */ "./node_modules/lodash/_arrayIncludes.js"),
-    arrayIncludesWith = __webpack_require__(/*! ./_arrayIncludesWith */ "./node_modules/lodash/_arrayIncludesWith.js"),
-    cacheHas = __webpack_require__(/*! ./_cacheHas */ "./node_modules/lodash/_cacheHas.js"),
-    createSet = __webpack_require__(/*! ./_createSet */ "./node_modules/lodash/_createSet.js"),
-    setToArray = __webpack_require__(/*! ./_setToArray */ "./node_modules/lodash/_setToArray.js");
-
-/** Used as the size to enable large array optimizations. */
-var LARGE_ARRAY_SIZE = 200;
-
-/**
- * The base implementation of `_.uniqBy` without support for iteratee shorthands.
- *
- * @private
- * @param {Array} array The array to inspect.
- * @param {Function} [iteratee] The iteratee invoked per element.
- * @param {Function} [comparator] The comparator invoked per element.
- * @returns {Array} Returns the new duplicate free array.
- */
-function baseUniq(array, iteratee, comparator) {
-  var index = -1,
-      includes = arrayIncludes,
-      length = array.length,
-      isCommon = true,
-      result = [],
-      seen = result;
-
-  if (comparator) {
-    isCommon = false;
-    includes = arrayIncludesWith;
-  }
-  else if (length >= LARGE_ARRAY_SIZE) {
-    var set = iteratee ? null : createSet(array);
-    if (set) {
-      return setToArray(set);
-    }
-    isCommon = false;
-    includes = cacheHas;
-    seen = new SetCache;
-  }
-  else {
-    seen = iteratee ? [] : result;
-  }
-  outer:
-  while (++index < length) {
-    var value = array[index],
-        computed = iteratee ? iteratee(value) : value;
-
-    value = (comparator || value !== 0) ? value : 0;
-    if (isCommon && computed === computed) {
-      var seenIndex = seen.length;
-      while (seenIndex--) {
-        if (seen[seenIndex] === computed) {
-          continue outer;
-        }
-      }
-      if (iteratee) {
-        seen.push(computed);
-      }
-      result.push(value);
-    }
-    else if (!includes(seen, computed, comparator)) {
-      if (seen !== result) {
-        seen.push(computed);
-      }
-      result.push(value);
-    }
-  }
-  return result;
-}
-
-module.exports = baseUniq;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_cacheHas.js":
-/*!******************************************!*\
-  !*** ./node_modules/lodash/_cacheHas.js ***!
-  \******************************************/
-/*! no static exports found */
-/***/ (function(module, exports) {
-
-/**
- * Checks if a `cache` value for `key` exists.
- *
- * @private
- * @param {Object} cache The cache to query.
- * @param {string} key The key of the entry to check.
- * @returns {boolean} Returns `true` if an entry for `key` exists, else `false`.
- */
-function cacheHas(cache, key) {
-  return cache.has(key);
-}
-
-module.exports = cacheHas;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_cloneArrayBuffer.js":
-/*!**************************************************!*\
-  !*** ./node_modules/lodash/_cloneArrayBuffer.js ***!
-  \**************************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var Uint8Array = __webpack_require__(/*! ./_Uint8Array */ "./node_modules/lodash/_Uint8Array.js");
-
-/**
- * Creates a clone of `arrayBuffer`.
- *
- * @private
- * @param {ArrayBuffer} arrayBuffer The array buffer to clone.
- * @returns {ArrayBuffer} Returns the cloned array buffer.
- */
-function cloneArrayBuffer(arrayBuffer) {
-  var result = new arrayBuffer.constructor(arrayBuffer.byteLength);
-  new Uint8Array(result).set(new Uint8Array(arrayBuffer));
-  return result;
-}
-
-module.exports = cloneArrayBuffer;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_cloneBuffer.js":
-/*!*********************************************!*\
-  !*** ./node_modules/lodash/_cloneBuffer.js ***!
-  \*********************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-/* WEBPACK VAR INJECTION */(function(module) {var root = __webpack_require__(/*! ./_root */ "./node_modules/lodash/_root.js");
-
-/** Detect free variable `exports`. */
-var freeExports = typeof exports == 'object' && exports && !exports.nodeType && exports;
-
-/** Detect free variable `module`. */
-var freeModule = freeExports && typeof module == 'object' && module && !module.nodeType && module;
-
-/** Detect the popular CommonJS extension `module.exports`. */
-var moduleExports = freeModule && freeModule.exports === freeExports;
-
-/** Built-in value references. */
-var Buffer = moduleExports ? root.Buffer : undefined,
-    allocUnsafe = Buffer ? Buffer.allocUnsafe : undefined;
-
-/**
- * Creates a clone of  `buffer`.
- *
- * @private
- * @param {Buffer} buffer The buffer to clone.
- * @param {boolean} [isDeep] Specify a deep clone.
- * @returns {Buffer} Returns the cloned buffer.
- */
-function cloneBuffer(buffer, isDeep) {
-  if (isDeep) {
-    return buffer.slice();
-  }
-  var length = buffer.length,
-      result = allocUnsafe ? allocUnsafe(length) : new buffer.constructor(length);
-
-  buffer.copy(result);
-  return result;
-}
-
-module.exports = cloneBuffer;
-
-/* WEBPACK VAR INJECTION */}.call(this, __webpack_require__(/*! ./../webpack/buildin/module.js */ "./node_modules/webpack/buildin/module.js")(module)))
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_cloneTypedArray.js":
-/*!*************************************************!*\
-  !*** ./node_modules/lodash/_cloneTypedArray.js ***!
-  \*************************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var cloneArrayBuffer = __webpack_require__(/*! ./_cloneArrayBuffer */ "./node_modules/lodash/_cloneArrayBuffer.js");
-
-/**
- * Creates a clone of `typedArray`.
- *
- * @private
- * @param {Object} typedArray The typed array to clone.
- * @param {boolean} [isDeep] Specify a deep clone.
- * @returns {Object} Returns the cloned typed array.
- */
-function cloneTypedArray(typedArray, isDeep) {
-  var buffer = isDeep ? cloneArrayBuffer(typedArray.buffer) : typedArray.buffer;
-  return new typedArray.constructor(buffer, typedArray.byteOffset, typedArray.length);
-}
-
-module.exports = cloneTypedArray;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_copyArray.js":
-/*!*******************************************!*\
-  !*** ./node_modules/lodash/_copyArray.js ***!
-  \*******************************************/
-/*! no static exports found */
-/***/ (function(module, exports) {
-
-/**
- * Copies the values of `source` to `array`.
- *
- * @private
- * @param {Array} source The array to copy values from.
- * @param {Array} [array=[]] The array to copy values to.
- * @returns {Array} Returns `array`.
- */
-function copyArray(source, array) {
-  var index = -1,
-      length = source.length;
-
-  array || (array = Array(length));
-  while (++index < length) {
-    array[index] = source[index];
-  }
-  return array;
-}
-
-module.exports = copyArray;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_copyObject.js":
-/*!********************************************!*\
-  !*** ./node_modules/lodash/_copyObject.js ***!
-  \********************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var assignValue = __webpack_require__(/*! ./_assignValue */ "./node_modules/lodash/_assignValue.js"),
-    baseAssignValue = __webpack_require__(/*! ./_baseAssignValue */ "./node_modules/lodash/_baseAssignValue.js");
-
-/**
- * Copies properties of `source` to `object`.
- *
- * @private
- * @param {Object} source The object to copy properties from.
- * @param {Array} props The property identifiers to copy.
- * @param {Object} [object={}] The object to copy properties to.
- * @param {Function} [customizer] The function to customize copied values.
- * @returns {Object} Returns `object`.
- */
-function copyObject(source, props, object, customizer) {
-  var isNew = !object;
-  object || (object = {});
-
-  var index = -1,
-      length = props.length;
-
-  while (++index < length) {
-    var key = props[index];
-
-    var newValue = customizer
-      ? customizer(object[key], source[key], key, object, source)
-      : undefined;
-
-    if (newValue === undefined) {
-      newValue = source[key];
-    }
-    if (isNew) {
-      baseAssignValue(object, key, newValue);
-    } else {
-      assignValue(object, key, newValue);
-    }
-  }
-  return object;
-}
-
-module.exports = copyObject;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_coreJsData.js":
-/*!********************************************!*\
-  !*** ./node_modules/lodash/_coreJsData.js ***!
-  \********************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var root = __webpack_require__(/*! ./_root */ "./node_modules/lodash/_root.js");
-
-/** Used to detect overreaching core-js shims. */
-var coreJsData = root['__core-js_shared__'];
-
-module.exports = coreJsData;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_createAssigner.js":
-/*!************************************************!*\
-  !*** ./node_modules/lodash/_createAssigner.js ***!
-  \************************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var baseRest = __webpack_require__(/*! ./_baseRest */ "./node_modules/lodash/_baseRest.js"),
-    isIterateeCall = __webpack_require__(/*! ./_isIterateeCall */ "./node_modules/lodash/_isIterateeCall.js");
-
-/**
- * Creates a function like `_.assign`.
- *
- * @private
- * @param {Function} assigner The function to assign values.
- * @returns {Function} Returns the new assigner function.
- */
-function createAssigner(assigner) {
-  return baseRest(function(object, sources) {
-    var index = -1,
-        length = sources.length,
-        customizer = length > 1 ? sources[length - 1] : undefined,
-        guard = length > 2 ? sources[2] : undefined;
-
-    customizer = (assigner.length > 3 && typeof customizer == 'function')
-      ? (length--, customizer)
-      : undefined;
-
-    if (guard && isIterateeCall(sources[0], sources[1], guard)) {
-      customizer = length < 3 ? undefined : customizer;
-      length = 1;
-    }
-    object = Object(object);
-    while (++index < length) {
-      var source = sources[index];
-      if (source) {
-        assigner(object, source, index, customizer);
-      }
-    }
-    return object;
-  });
-}
-
-module.exports = createAssigner;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_createBaseFor.js":
-/*!***********************************************!*\
-  !*** ./node_modules/lodash/_createBaseFor.js ***!
-  \***********************************************/
-/*! no static exports found */
-/***/ (function(module, exports) {
-
-/**
- * Creates a base function for methods like `_.forIn` and `_.forOwn`.
- *
- * @private
- * @param {boolean} [fromRight] Specify iterating from right to left.
- * @returns {Function} Returns the new base function.
- */
-function createBaseFor(fromRight) {
-  return function(object, iteratee, keysFunc) {
-    var index = -1,
-        iterable = Object(object),
-        props = keysFunc(object),
-        length = props.length;
-
-    while (length--) {
-      var key = props[fromRight ? length : ++index];
-      if (iteratee(iterable[key], key, iterable) === false) {
-        break;
-      }
-    }
-    return object;
-  };
-}
-
-module.exports = createBaseFor;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_createSet.js":
-/*!*******************************************!*\
-  !*** ./node_modules/lodash/_createSet.js ***!
-  \*******************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var Set = __webpack_require__(/*! ./_Set */ "./node_modules/lodash/_Set.js"),
-    noop = __webpack_require__(/*! ./noop */ "./node_modules/lodash/noop.js"),
-    setToArray = __webpack_require__(/*! ./_setToArray */ "./node_modules/lodash/_setToArray.js");
-
-/** Used as references for various `Number` constants. */
-var INFINITY = 1 / 0;
-
-/**
- * Creates a set object of `values`.
- *
- * @private
- * @param {Array} values The values to add to the set.
- * @returns {Object} Returns the new set.
- */
-var createSet = !(Set && (1 / setToArray(new Set([,-0]))[1]) == INFINITY) ? noop : function(values) {
-  return new Set(values);
-};
-
-module.exports = createSet;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_defineProperty.js":
-/*!************************************************!*\
-  !*** ./node_modules/lodash/_defineProperty.js ***!
-  \************************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var getNative = __webpack_require__(/*! ./_getNative */ "./node_modules/lodash/_getNative.js");
-
-var defineProperty = (function() {
-  try {
-    var func = getNative(Object, 'defineProperty');
-    func({}, '', {});
-    return func;
-  } catch (e) {}
-}());
-
-module.exports = defineProperty;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_freeGlobal.js":
-/*!********************************************!*\
-  !*** ./node_modules/lodash/_freeGlobal.js ***!
-  \********************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-/* WEBPACK VAR INJECTION */(function(global) {/** Detect free variable `global` from Node.js. */
+/** Detect free variable `global` from Node.js. */
 var freeGlobal = typeof global == 'object' && global && global.Object === Object && global;
 
-module.exports = freeGlobal;
+/** Detect free variable `self`. */
+var freeSelf = typeof self == 'object' && self && self.Object === Object && self;
 
-/* WEBPACK VAR INJECTION */}.call(this, __webpack_require__(/*! ./../webpack/buildin/global.js */ "./node_modules/webpack/buildin/global.js")))
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_getMapData.js":
-/*!********************************************!*\
-  !*** ./node_modules/lodash/_getMapData.js ***!
-  \********************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var isKeyable = __webpack_require__(/*! ./_isKeyable */ "./node_modules/lodash/_isKeyable.js");
-
-/**
- * Gets the data for `map`.
- *
- * @private
- * @param {Object} map The map to query.
- * @param {string} key The reference key.
- * @returns {*} Returns the map data.
- */
-function getMapData(map, key) {
-  var data = map.__data__;
-  return isKeyable(key)
-    ? data[typeof key == 'string' ? 'string' : 'hash']
-    : data.map;
-}
-
-module.exports = getMapData;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_getNative.js":
-/*!*******************************************!*\
-  !*** ./node_modules/lodash/_getNative.js ***!
-  \*******************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var baseIsNative = __webpack_require__(/*! ./_baseIsNative */ "./node_modules/lodash/_baseIsNative.js"),
-    getValue = __webpack_require__(/*! ./_getValue */ "./node_modules/lodash/_getValue.js");
-
-/**
- * Gets the native function at `key` of `object`.
- *
- * @private
- * @param {Object} object The object to query.
- * @param {string} key The key of the method to get.
- * @returns {*} Returns the function if it's native, else `undefined`.
- */
-function getNative(object, key) {
-  var value = getValue(object, key);
-  return baseIsNative(value) ? value : undefined;
-}
-
-module.exports = getNative;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_getPrototype.js":
-/*!**********************************************!*\
-  !*** ./node_modules/lodash/_getPrototype.js ***!
-  \**********************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var overArg = __webpack_require__(/*! ./_overArg */ "./node_modules/lodash/_overArg.js");
-
-/** Built-in value references. */
-var getPrototype = overArg(Object.getPrototypeOf, Object);
-
-module.exports = getPrototype;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_getRawTag.js":
-/*!*******************************************!*\
-  !*** ./node_modules/lodash/_getRawTag.js ***!
-  \*******************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var Symbol = __webpack_require__(/*! ./_Symbol */ "./node_modules/lodash/_Symbol.js");
-
-/** Used for built-in method references. */
-var objectProto = Object.prototype;
-
-/** Used to check objects for own properties. */
-var hasOwnProperty = objectProto.hasOwnProperty;
-
-/**
- * Used to resolve the
- * [`toStringTag`](http://ecma-international.org/ecma-262/7.0/#sec-object.prototype.tostring)
- * of values.
- */
-var nativeObjectToString = objectProto.toString;
-
-/** Built-in value references. */
-var symToStringTag = Symbol ? Symbol.toStringTag : undefined;
-
-/**
- * A specialized version of `baseGetTag` which ignores `Symbol.toStringTag` values.
- *
- * @private
- * @param {*} value The value to query.
- * @returns {string} Returns the raw `toStringTag`.
- */
-function getRawTag(value) {
-  var isOwn = hasOwnProperty.call(value, symToStringTag),
-      tag = value[symToStringTag];
-
-  try {
-    value[symToStringTag] = undefined;
-    var unmasked = true;
-  } catch (e) {}
-
-  var result = nativeObjectToString.call(value);
-  if (unmasked) {
-    if (isOwn) {
-      value[symToStringTag] = tag;
-    } else {
-      delete value[symToStringTag];
-    }
-  }
-  return result;
-}
-
-module.exports = getRawTag;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_getValue.js":
-/*!******************************************!*\
-  !*** ./node_modules/lodash/_getValue.js ***!
-  \******************************************/
-/*! no static exports found */
-/***/ (function(module, exports) {
+/** Used as a reference to the global object. */
+var root = freeGlobal || freeSelf || Function('return this')();
 
 /**
  * Gets the value at `key` of `object`.
@@ -16860,19 +15372,87 @@ function getValue(object, key) {
   return object == null ? undefined : object[key];
 }
 
-module.exports = getValue;
+/**
+ * Checks if `value` is a host object in IE < 9.
+ *
+ * @private
+ * @param {*} value The value to check.
+ * @returns {boolean} Returns `true` if `value` is a host object, else `false`.
+ */
+function isHostObject(value) {
+  // Many host objects are `Object` objects that can coerce to strings
+  // despite having improperly defined `toString` methods.
+  var result = false;
+  if (value != null && typeof value.toString != 'function') {
+    try {
+      result = !!(value + '');
+    } catch (e) {}
+  }
+  return result;
+}
 
+/** Used for built-in method references. */
+var arrayProto = Array.prototype,
+    funcProto = Function.prototype,
+    objectProto = Object.prototype;
 
-/***/ }),
+/** Used to detect overreaching core-js shims. */
+var coreJsData = root['__core-js_shared__'];
 
-/***/ "./node_modules/lodash/_hashClear.js":
-/*!*******************************************!*\
-  !*** ./node_modules/lodash/_hashClear.js ***!
-  \*******************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
+/** Used to detect methods masquerading as native. */
+var maskSrcKey = (function() {
+  var uid = /[^.]+$/.exec(coreJsData && coreJsData.keys && coreJsData.keys.IE_PROTO || '');
+  return uid ? ('Symbol(src)_1.' + uid) : '';
+}());
 
-var nativeCreate = __webpack_require__(/*! ./_nativeCreate */ "./node_modules/lodash/_nativeCreate.js");
+/** Used to resolve the decompiled source of functions. */
+var funcToString = funcProto.toString;
+
+/** Used to check objects for own properties. */
+var hasOwnProperty = objectProto.hasOwnProperty;
+
+/**
+ * Used to resolve the
+ * [`toStringTag`](http://ecma-international.org/ecma-262/7.0/#sec-object.prototype.tostring)
+ * of values.
+ */
+var objectToString = objectProto.toString;
+
+/** Used to detect if a method is native. */
+var reIsNative = RegExp('^' +
+  funcToString.call(hasOwnProperty).replace(reRegExpChar, '\\$&')
+  .replace(/hasOwnProperty|(function).*?(?=\\\()| for .+?(?=\\\])/g, '$1.*?') + '$'
+);
+
+/** Built-in value references. */
+var Symbol = root.Symbol,
+    splice = arrayProto.splice;
+
+/* Built-in method references that are verified to be native. */
+var Map = getNative(root, 'Map'),
+    nativeCreate = getNative(Object, 'create');
+
+/** Used to convert symbols to primitives and strings. */
+var symbolProto = Symbol ? Symbol.prototype : undefined,
+    symbolToString = symbolProto ? symbolProto.toString : undefined;
+
+/**
+ * Creates a hash object.
+ *
+ * @private
+ * @constructor
+ * @param {Array} [entries] The key-value pairs to cache.
+ */
+function Hash(entries) {
+  var index = -1,
+      length = entries ? entries.length : 0;
+
+  this.clear();
+  while (++index < length) {
+    var entry = entries[index];
+    this.set(entry[0], entry[1]);
+  }
+}
 
 /**
  * Removes all key-value entries from the hash.
@@ -16883,20 +15463,7 @@ var nativeCreate = __webpack_require__(/*! ./_nativeCreate */ "./node_modules/lo
  */
 function hashClear() {
   this.__data__ = nativeCreate ? nativeCreate(null) : {};
-  this.size = 0;
 }
-
-module.exports = hashClear;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_hashDelete.js":
-/*!********************************************!*\
-  !*** ./node_modules/lodash/_hashDelete.js ***!
-  \********************************************/
-/*! no static exports found */
-/***/ (function(module, exports) {
 
 /**
  * Removes `key` and its value from the hash.
@@ -16909,33 +15476,8 @@ module.exports = hashClear;
  * @returns {boolean} Returns `true` if the entry was removed, else `false`.
  */
 function hashDelete(key) {
-  var result = this.has(key) && delete this.__data__[key];
-  this.size -= result ? 1 : 0;
-  return result;
+  return this.has(key) && delete this.__data__[key];
 }
-
-module.exports = hashDelete;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_hashGet.js":
-/*!*****************************************!*\
-  !*** ./node_modules/lodash/_hashGet.js ***!
-  \*****************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var nativeCreate = __webpack_require__(/*! ./_nativeCreate */ "./node_modules/lodash/_nativeCreate.js");
-
-/** Used to stand-in for `undefined` hash values. */
-var HASH_UNDEFINED = '__lodash_hash_undefined__';
-
-/** Used for built-in method references. */
-var objectProto = Object.prototype;
-
-/** Used to check objects for own properties. */
-var hasOwnProperty = objectProto.hasOwnProperty;
 
 /**
  * Gets the hash value for `key`.
@@ -16955,26 +15497,6 @@ function hashGet(key) {
   return hasOwnProperty.call(data, key) ? data[key] : undefined;
 }
 
-module.exports = hashGet;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_hashHas.js":
-/*!*****************************************!*\
-  !*** ./node_modules/lodash/_hashHas.js ***!
-  \*****************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var nativeCreate = __webpack_require__(/*! ./_nativeCreate */ "./node_modules/lodash/_nativeCreate.js");
-
-/** Used for built-in method references. */
-var objectProto = Object.prototype;
-
-/** Used to check objects for own properties. */
-var hasOwnProperty = objectProto.hasOwnProperty;
-
 /**
  * Checks if a hash value for `key` exists.
  *
@@ -16986,25 +15508,8 @@ var hasOwnProperty = objectProto.hasOwnProperty;
  */
 function hashHas(key) {
   var data = this.__data__;
-  return nativeCreate ? (data[key] !== undefined) : hasOwnProperty.call(data, key);
+  return nativeCreate ? data[key] !== undefined : hasOwnProperty.call(data, key);
 }
-
-module.exports = hashHas;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_hashSet.js":
-/*!*****************************************!*\
-  !*** ./node_modules/lodash/_hashSet.js ***!
-  \*****************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var nativeCreate = __webpack_require__(/*! ./_nativeCreate */ "./node_modules/lodash/_nativeCreate.js");
-
-/** Used to stand-in for `undefined` hash values. */
-var HASH_UNDEFINED = '__lodash_hash_undefined__';
 
 /**
  * Sets the hash `key` to `value`.
@@ -17018,242 +15523,34 @@ var HASH_UNDEFINED = '__lodash_hash_undefined__';
  */
 function hashSet(key, value) {
   var data = this.__data__;
-  this.size += this.has(key) ? 0 : 1;
   data[key] = (nativeCreate && value === undefined) ? HASH_UNDEFINED : value;
   return this;
 }
 
-module.exports = hashSet;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_initCloneObject.js":
-/*!*************************************************!*\
-  !*** ./node_modules/lodash/_initCloneObject.js ***!
-  \*************************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var baseCreate = __webpack_require__(/*! ./_baseCreate */ "./node_modules/lodash/_baseCreate.js"),
-    getPrototype = __webpack_require__(/*! ./_getPrototype */ "./node_modules/lodash/_getPrototype.js"),
-    isPrototype = __webpack_require__(/*! ./_isPrototype */ "./node_modules/lodash/_isPrototype.js");
+// Add methods to `Hash`.
+Hash.prototype.clear = hashClear;
+Hash.prototype['delete'] = hashDelete;
+Hash.prototype.get = hashGet;
+Hash.prototype.has = hashHas;
+Hash.prototype.set = hashSet;
 
 /**
- * Initializes an object clone.
+ * Creates an list cache object.
  *
  * @private
- * @param {Object} object The object to clone.
- * @returns {Object} Returns the initialized clone.
+ * @constructor
+ * @param {Array} [entries] The key-value pairs to cache.
  */
-function initCloneObject(object) {
-  return (typeof object.constructor == 'function' && !isPrototype(object))
-    ? baseCreate(getPrototype(object))
-    : {};
-}
+function ListCache(entries) {
+  var index = -1,
+      length = entries ? entries.length : 0;
 
-module.exports = initCloneObject;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_isFlattenable.js":
-/*!***********************************************!*\
-  !*** ./node_modules/lodash/_isFlattenable.js ***!
-  \***********************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var Symbol = __webpack_require__(/*! ./_Symbol */ "./node_modules/lodash/_Symbol.js"),
-    isArguments = __webpack_require__(/*! ./isArguments */ "./node_modules/lodash/isArguments.js"),
-    isArray = __webpack_require__(/*! ./isArray */ "./node_modules/lodash/isArray.js");
-
-/** Built-in value references. */
-var spreadableSymbol = Symbol ? Symbol.isConcatSpreadable : undefined;
-
-/**
- * Checks if `value` is a flattenable `arguments` object or array.
- *
- * @private
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is flattenable, else `false`.
- */
-function isFlattenable(value) {
-  return isArray(value) || isArguments(value) ||
-    !!(spreadableSymbol && value && value[spreadableSymbol]);
-}
-
-module.exports = isFlattenable;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_isIndex.js":
-/*!*****************************************!*\
-  !*** ./node_modules/lodash/_isIndex.js ***!
-  \*****************************************/
-/*! no static exports found */
-/***/ (function(module, exports) {
-
-/** Used as references for various `Number` constants. */
-var MAX_SAFE_INTEGER = 9007199254740991;
-
-/** Used to detect unsigned integer values. */
-var reIsUint = /^(?:0|[1-9]\d*)$/;
-
-/**
- * Checks if `value` is a valid array-like index.
- *
- * @private
- * @param {*} value The value to check.
- * @param {number} [length=MAX_SAFE_INTEGER] The upper bounds of a valid index.
- * @returns {boolean} Returns `true` if `value` is a valid index, else `false`.
- */
-function isIndex(value, length) {
-  length = length == null ? MAX_SAFE_INTEGER : length;
-  return !!length &&
-    (typeof value == 'number' || reIsUint.test(value)) &&
-    (value > -1 && value % 1 == 0 && value < length);
-}
-
-module.exports = isIndex;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_isIterateeCall.js":
-/*!************************************************!*\
-  !*** ./node_modules/lodash/_isIterateeCall.js ***!
-  \************************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var eq = __webpack_require__(/*! ./eq */ "./node_modules/lodash/eq.js"),
-    isArrayLike = __webpack_require__(/*! ./isArrayLike */ "./node_modules/lodash/isArrayLike.js"),
-    isIndex = __webpack_require__(/*! ./_isIndex */ "./node_modules/lodash/_isIndex.js"),
-    isObject = __webpack_require__(/*! ./isObject */ "./node_modules/lodash/isObject.js");
-
-/**
- * Checks if the given arguments are from an iteratee call.
- *
- * @private
- * @param {*} value The potential iteratee value argument.
- * @param {*} index The potential iteratee index or key argument.
- * @param {*} object The potential iteratee object argument.
- * @returns {boolean} Returns `true` if the arguments are from an iteratee call,
- *  else `false`.
- */
-function isIterateeCall(value, index, object) {
-  if (!isObject(object)) {
-    return false;
+  this.clear();
+  while (++index < length) {
+    var entry = entries[index];
+    this.set(entry[0], entry[1]);
   }
-  var type = typeof index;
-  if (type == 'number'
-        ? (isArrayLike(object) && isIndex(index, object.length))
-        : (type == 'string' && index in object)
-      ) {
-    return eq(object[index], value);
-  }
-  return false;
 }
-
-module.exports = isIterateeCall;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_isKeyable.js":
-/*!*******************************************!*\
-  !*** ./node_modules/lodash/_isKeyable.js ***!
-  \*******************************************/
-/*! no static exports found */
-/***/ (function(module, exports) {
-
-/**
- * Checks if `value` is suitable for use as unique object key.
- *
- * @private
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is suitable, else `false`.
- */
-function isKeyable(value) {
-  var type = typeof value;
-  return (type == 'string' || type == 'number' || type == 'symbol' || type == 'boolean')
-    ? (value !== '__proto__')
-    : (value === null);
-}
-
-module.exports = isKeyable;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_isMasked.js":
-/*!******************************************!*\
-  !*** ./node_modules/lodash/_isMasked.js ***!
-  \******************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var coreJsData = __webpack_require__(/*! ./_coreJsData */ "./node_modules/lodash/_coreJsData.js");
-
-/** Used to detect methods masquerading as native. */
-var maskSrcKey = (function() {
-  var uid = /[^.]+$/.exec(coreJsData && coreJsData.keys && coreJsData.keys.IE_PROTO || '');
-  return uid ? ('Symbol(src)_1.' + uid) : '';
-}());
-
-/**
- * Checks if `func` has its source masked.
- *
- * @private
- * @param {Function} func The function to check.
- * @returns {boolean} Returns `true` if `func` is masked, else `false`.
- */
-function isMasked(func) {
-  return !!maskSrcKey && (maskSrcKey in func);
-}
-
-module.exports = isMasked;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_isPrototype.js":
-/*!*********************************************!*\
-  !*** ./node_modules/lodash/_isPrototype.js ***!
-  \*********************************************/
-/*! no static exports found */
-/***/ (function(module, exports) {
-
-/** Used for built-in method references. */
-var objectProto = Object.prototype;
-
-/**
- * Checks if `value` is likely a prototype object.
- *
- * @private
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is a prototype, else `false`.
- */
-function isPrototype(value) {
-  var Ctor = value && value.constructor,
-      proto = (typeof Ctor == 'function' && Ctor.prototype) || objectProto;
-
-  return value === proto;
-}
-
-module.exports = isPrototype;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_listCacheClear.js":
-/*!************************************************!*\
-  !*** ./node_modules/lodash/_listCacheClear.js ***!
-  \************************************************/
-/*! no static exports found */
-/***/ (function(module, exports) {
 
 /**
  * Removes all key-value entries from the list cache.
@@ -17264,28 +15561,7 @@ module.exports = isPrototype;
  */
 function listCacheClear() {
   this.__data__ = [];
-  this.size = 0;
 }
-
-module.exports = listCacheClear;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_listCacheDelete.js":
-/*!*************************************************!*\
-  !*** ./node_modules/lodash/_listCacheDelete.js ***!
-  \*************************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var assocIndexOf = __webpack_require__(/*! ./_assocIndexOf */ "./node_modules/lodash/_assocIndexOf.js");
-
-/** Used for built-in method references. */
-var arrayProto = Array.prototype;
-
-/** Built-in value references. */
-var splice = arrayProto.splice;
 
 /**
  * Removes `key` and its value from the list cache.
@@ -17309,23 +15585,8 @@ function listCacheDelete(key) {
   } else {
     splice.call(data, index, 1);
   }
-  --this.size;
   return true;
 }
-
-module.exports = listCacheDelete;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_listCacheGet.js":
-/*!**********************************************!*\
-  !*** ./node_modules/lodash/_listCacheGet.js ***!
-  \**********************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var assocIndexOf = __webpack_require__(/*! ./_assocIndexOf */ "./node_modules/lodash/_assocIndexOf.js");
 
 /**
  * Gets the list cache value for `key`.
@@ -17343,20 +15604,6 @@ function listCacheGet(key) {
   return index < 0 ? undefined : data[index][1];
 }
 
-module.exports = listCacheGet;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_listCacheHas.js":
-/*!**********************************************!*\
-  !*** ./node_modules/lodash/_listCacheHas.js ***!
-  \**********************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var assocIndexOf = __webpack_require__(/*! ./_assocIndexOf */ "./node_modules/lodash/_assocIndexOf.js");
-
 /**
  * Checks if a list cache value for `key` exists.
  *
@@ -17369,20 +15616,6 @@ var assocIndexOf = __webpack_require__(/*! ./_assocIndexOf */ "./node_modules/lo
 function listCacheHas(key) {
   return assocIndexOf(this.__data__, key) > -1;
 }
-
-module.exports = listCacheHas;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_listCacheSet.js":
-/*!**********************************************!*\
-  !*** ./node_modules/lodash/_listCacheSet.js ***!
-  \**********************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var assocIndexOf = __webpack_require__(/*! ./_assocIndexOf */ "./node_modules/lodash/_assocIndexOf.js");
 
 /**
  * Sets the list cache `key` to `value`.
@@ -17399,7 +15632,6 @@ function listCacheSet(key, value) {
       index = assocIndexOf(data, key);
 
   if (index < 0) {
-    ++this.size;
     data.push([key, value]);
   } else {
     data[index][1] = value;
@@ -17407,21 +15639,30 @@ function listCacheSet(key, value) {
   return this;
 }
 
-module.exports = listCacheSet;
+// Add methods to `ListCache`.
+ListCache.prototype.clear = listCacheClear;
+ListCache.prototype['delete'] = listCacheDelete;
+ListCache.prototype.get = listCacheGet;
+ListCache.prototype.has = listCacheHas;
+ListCache.prototype.set = listCacheSet;
 
+/**
+ * Creates a map cache object to store key-value pairs.
+ *
+ * @private
+ * @constructor
+ * @param {Array} [entries] The key-value pairs to cache.
+ */
+function MapCache(entries) {
+  var index = -1,
+      length = entries ? entries.length : 0;
 
-/***/ }),
-
-/***/ "./node_modules/lodash/_mapCacheClear.js":
-/*!***********************************************!*\
-  !*** ./node_modules/lodash/_mapCacheClear.js ***!
-  \***********************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var Hash = __webpack_require__(/*! ./_Hash */ "./node_modules/lodash/_Hash.js"),
-    ListCache = __webpack_require__(/*! ./_ListCache */ "./node_modules/lodash/_ListCache.js"),
-    Map = __webpack_require__(/*! ./_Map */ "./node_modules/lodash/_Map.js");
+  this.clear();
+  while (++index < length) {
+    var entry = entries[index];
+    this.set(entry[0], entry[1]);
+  }
+}
 
 /**
  * Removes all key-value entries from the map.
@@ -17431,27 +15672,12 @@ var Hash = __webpack_require__(/*! ./_Hash */ "./node_modules/lodash/_Hash.js"),
  * @memberOf MapCache
  */
 function mapCacheClear() {
-  this.size = 0;
   this.__data__ = {
     'hash': new Hash,
     'map': new (Map || ListCache),
     'string': new Hash
   };
 }
-
-module.exports = mapCacheClear;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_mapCacheDelete.js":
-/*!************************************************!*\
-  !*** ./node_modules/lodash/_mapCacheDelete.js ***!
-  \************************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var getMapData = __webpack_require__(/*! ./_getMapData */ "./node_modules/lodash/_getMapData.js");
 
 /**
  * Removes `key` and its value from the map.
@@ -17463,24 +15689,8 @@ var getMapData = __webpack_require__(/*! ./_getMapData */ "./node_modules/lodash
  * @returns {boolean} Returns `true` if the entry was removed, else `false`.
  */
 function mapCacheDelete(key) {
-  var result = getMapData(this, key)['delete'](key);
-  this.size -= result ? 1 : 0;
-  return result;
+  return getMapData(this, key)['delete'](key);
 }
-
-module.exports = mapCacheDelete;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_mapCacheGet.js":
-/*!*********************************************!*\
-  !*** ./node_modules/lodash/_mapCacheGet.js ***!
-  \*********************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var getMapData = __webpack_require__(/*! ./_getMapData */ "./node_modules/lodash/_getMapData.js");
 
 /**
  * Gets the map value for `key`.
@@ -17495,20 +15705,6 @@ function mapCacheGet(key) {
   return getMapData(this, key).get(key);
 }
 
-module.exports = mapCacheGet;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_mapCacheHas.js":
-/*!*********************************************!*\
-  !*** ./node_modules/lodash/_mapCacheHas.js ***!
-  \*********************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var getMapData = __webpack_require__(/*! ./_getMapData */ "./node_modules/lodash/_getMapData.js");
-
 /**
  * Checks if a map value for `key` exists.
  *
@@ -17522,20 +15718,6 @@ function mapCacheHas(key) {
   return getMapData(this, key).has(key);
 }
 
-module.exports = mapCacheHas;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_mapCacheSet.js":
-/*!*********************************************!*\
-  !*** ./node_modules/lodash/_mapCacheSet.js ***!
-  \*********************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var getMapData = __webpack_require__(/*! ./_getMapData */ "./node_modules/lodash/_getMapData.js");
-
 /**
  * Sets the map `key` to `value`.
  *
@@ -17547,586 +15729,216 @@ var getMapData = __webpack_require__(/*! ./_getMapData */ "./node_modules/lodash
  * @returns {Object} Returns the map cache instance.
  */
 function mapCacheSet(key, value) {
-  var data = getMapData(this, key),
-      size = data.size;
-
-  data.set(key, value);
-  this.size += data.size == size ? 0 : 1;
+  getMapData(this, key).set(key, value);
   return this;
 }
 
-module.exports = mapCacheSet;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_nativeCreate.js":
-/*!**********************************************!*\
-  !*** ./node_modules/lodash/_nativeCreate.js ***!
-  \**********************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var getNative = __webpack_require__(/*! ./_getNative */ "./node_modules/lodash/_getNative.js");
-
-/* Built-in method references that are verified to be native. */
-var nativeCreate = getNative(Object, 'create');
-
-module.exports = nativeCreate;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_nativeKeysIn.js":
-/*!**********************************************!*\
-  !*** ./node_modules/lodash/_nativeKeysIn.js ***!
-  \**********************************************/
-/*! no static exports found */
-/***/ (function(module, exports) {
+// Add methods to `MapCache`.
+MapCache.prototype.clear = mapCacheClear;
+MapCache.prototype['delete'] = mapCacheDelete;
+MapCache.prototype.get = mapCacheGet;
+MapCache.prototype.has = mapCacheHas;
+MapCache.prototype.set = mapCacheSet;
 
 /**
- * This function is like
- * [`Object.keys`](http://ecma-international.org/ecma-262/7.0/#sec-object.keys)
- * except that it includes inherited enumerable properties.
- *
- * @private
- * @param {Object} object The object to query.
- * @returns {Array} Returns the array of property names.
- */
-function nativeKeysIn(object) {
-  var result = [];
-  if (object != null) {
-    for (var key in Object(object)) {
-      result.push(key);
-    }
-  }
-  return result;
-}
-
-module.exports = nativeKeysIn;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_nodeUtil.js":
-/*!******************************************!*\
-  !*** ./node_modules/lodash/_nodeUtil.js ***!
-  \******************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-/* WEBPACK VAR INJECTION */(function(module) {var freeGlobal = __webpack_require__(/*! ./_freeGlobal */ "./node_modules/lodash/_freeGlobal.js");
-
-/** Detect free variable `exports`. */
-var freeExports = typeof exports == 'object' && exports && !exports.nodeType && exports;
-
-/** Detect free variable `module`. */
-var freeModule = freeExports && typeof module == 'object' && module && !module.nodeType && module;
-
-/** Detect the popular CommonJS extension `module.exports`. */
-var moduleExports = freeModule && freeModule.exports === freeExports;
-
-/** Detect free variable `process` from Node.js. */
-var freeProcess = moduleExports && freeGlobal.process;
-
-/** Used to access faster Node.js helpers. */
-var nodeUtil = (function() {
-  try {
-    return freeProcess && freeProcess.binding && freeProcess.binding('util');
-  } catch (e) {}
-}());
-
-module.exports = nodeUtil;
-
-/* WEBPACK VAR INJECTION */}.call(this, __webpack_require__(/*! ./../webpack/buildin/module.js */ "./node_modules/webpack/buildin/module.js")(module)))
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_objectToString.js":
-/*!************************************************!*\
-  !*** ./node_modules/lodash/_objectToString.js ***!
-  \************************************************/
-/*! no static exports found */
-/***/ (function(module, exports) {
-
-/** Used for built-in method references. */
-var objectProto = Object.prototype;
-
-/**
- * Used to resolve the
- * [`toStringTag`](http://ecma-international.org/ecma-262/7.0/#sec-object.prototype.tostring)
- * of values.
- */
-var nativeObjectToString = objectProto.toString;
-
-/**
- * Converts `value` to a string using `Object.prototype.toString`.
- *
- * @private
- * @param {*} value The value to convert.
- * @returns {string} Returns the converted string.
- */
-function objectToString(value) {
-  return nativeObjectToString.call(value);
-}
-
-module.exports = objectToString;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_overArg.js":
-/*!*****************************************!*\
-  !*** ./node_modules/lodash/_overArg.js ***!
-  \*****************************************/
-/*! no static exports found */
-/***/ (function(module, exports) {
-
-/**
- * Creates a unary function that invokes `func` with its argument transformed.
- *
- * @private
- * @param {Function} func The function to wrap.
- * @param {Function} transform The argument transform.
- * @returns {Function} Returns the new function.
- */
-function overArg(func, transform) {
-  return function(arg) {
-    return func(transform(arg));
-  };
-}
-
-module.exports = overArg;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_overRest.js":
-/*!******************************************!*\
-  !*** ./node_modules/lodash/_overRest.js ***!
-  \******************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var apply = __webpack_require__(/*! ./_apply */ "./node_modules/lodash/_apply.js");
-
-/* Built-in method references for those with the same name as other `lodash` methods. */
-var nativeMax = Math.max;
-
-/**
- * A specialized version of `baseRest` which transforms the rest array.
- *
- * @private
- * @param {Function} func The function to apply a rest parameter to.
- * @param {number} [start=func.length-1] The start position of the rest parameter.
- * @param {Function} transform The rest array transform.
- * @returns {Function} Returns the new function.
- */
-function overRest(func, start, transform) {
-  start = nativeMax(start === undefined ? (func.length - 1) : start, 0);
-  return function() {
-    var args = arguments,
-        index = -1,
-        length = nativeMax(args.length - start, 0),
-        array = Array(length);
-
-    while (++index < length) {
-      array[index] = args[start + index];
-    }
-    index = -1;
-    var otherArgs = Array(start + 1);
-    while (++index < start) {
-      otherArgs[index] = args[index];
-    }
-    otherArgs[start] = transform(array);
-    return apply(func, this, otherArgs);
-  };
-}
-
-module.exports = overRest;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_root.js":
-/*!**************************************!*\
-  !*** ./node_modules/lodash/_root.js ***!
-  \**************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var freeGlobal = __webpack_require__(/*! ./_freeGlobal */ "./node_modules/lodash/_freeGlobal.js");
-
-/** Detect free variable `self`. */
-var freeSelf = typeof self == 'object' && self && self.Object === Object && self;
-
-/** Used as a reference to the global object. */
-var root = freeGlobal || freeSelf || Function('return this')();
-
-module.exports = root;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_setCacheAdd.js":
-/*!*********************************************!*\
-  !*** ./node_modules/lodash/_setCacheAdd.js ***!
-  \*********************************************/
-/*! no static exports found */
-/***/ (function(module, exports) {
-
-/** Used to stand-in for `undefined` hash values. */
-var HASH_UNDEFINED = '__lodash_hash_undefined__';
-
-/**
- * Adds `value` to the array cache.
- *
- * @private
- * @name add
- * @memberOf SetCache
- * @alias push
- * @param {*} value The value to cache.
- * @returns {Object} Returns the cache instance.
- */
-function setCacheAdd(value) {
-  this.__data__.set(value, HASH_UNDEFINED);
-  return this;
-}
-
-module.exports = setCacheAdd;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_setCacheHas.js":
-/*!*********************************************!*\
-  !*** ./node_modules/lodash/_setCacheHas.js ***!
-  \*********************************************/
-/*! no static exports found */
-/***/ (function(module, exports) {
-
-/**
- * Checks if `value` is in the array cache.
- *
- * @private
- * @name has
- * @memberOf SetCache
- * @param {*} value The value to search for.
- * @returns {number} Returns `true` if `value` is found, else `false`.
- */
-function setCacheHas(value) {
-  return this.__data__.has(value);
-}
-
-module.exports = setCacheHas;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_setToArray.js":
-/*!********************************************!*\
-  !*** ./node_modules/lodash/_setToArray.js ***!
-  \********************************************/
-/*! no static exports found */
-/***/ (function(module, exports) {
-
-/**
- * Converts `set` to an array of its values.
- *
- * @private
- * @param {Object} set The set to convert.
- * @returns {Array} Returns the values.
- */
-function setToArray(set) {
-  var index = -1,
-      result = Array(set.size);
-
-  set.forEach(function(value) {
-    result[++index] = value;
-  });
-  return result;
-}
-
-module.exports = setToArray;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_setToString.js":
-/*!*********************************************!*\
-  !*** ./node_modules/lodash/_setToString.js ***!
-  \*********************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var baseSetToString = __webpack_require__(/*! ./_baseSetToString */ "./node_modules/lodash/_baseSetToString.js"),
-    shortOut = __webpack_require__(/*! ./_shortOut */ "./node_modules/lodash/_shortOut.js");
-
-/**
- * Sets the `toString` method of `func` to return `string`.
- *
- * @private
- * @param {Function} func The function to modify.
- * @param {Function} string The `toString` result.
- * @returns {Function} Returns `func`.
- */
-var setToString = shortOut(baseSetToString);
-
-module.exports = setToString;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_shortOut.js":
-/*!******************************************!*\
-  !*** ./node_modules/lodash/_shortOut.js ***!
-  \******************************************/
-/*! no static exports found */
-/***/ (function(module, exports) {
-
-/** Used to detect hot functions by number of calls within a span of milliseconds. */
-var HOT_COUNT = 800,
-    HOT_SPAN = 16;
-
-/* Built-in method references for those with the same name as other `lodash` methods. */
-var nativeNow = Date.now;
-
-/**
- * Creates a function that'll short out and invoke `identity` instead
- * of `func` when it's called `HOT_COUNT` or more times in `HOT_SPAN`
- * milliseconds.
- *
- * @private
- * @param {Function} func The function to restrict.
- * @returns {Function} Returns the new shortable function.
- */
-function shortOut(func) {
-  var count = 0,
-      lastCalled = 0;
-
-  return function() {
-    var stamp = nativeNow(),
-        remaining = HOT_SPAN - (stamp - lastCalled);
-
-    lastCalled = stamp;
-    if (remaining > 0) {
-      if (++count >= HOT_COUNT) {
-        return arguments[0];
-      }
-    } else {
-      count = 0;
-    }
-    return func.apply(undefined, arguments);
-  };
-}
-
-module.exports = shortOut;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_stackClear.js":
-/*!********************************************!*\
-  !*** ./node_modules/lodash/_stackClear.js ***!
-  \********************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var ListCache = __webpack_require__(/*! ./_ListCache */ "./node_modules/lodash/_ListCache.js");
-
-/**
- * Removes all key-value entries from the stack.
- *
- * @private
- * @name clear
- * @memberOf Stack
- */
-function stackClear() {
-  this.__data__ = new ListCache;
-  this.size = 0;
-}
-
-module.exports = stackClear;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_stackDelete.js":
-/*!*********************************************!*\
-  !*** ./node_modules/lodash/_stackDelete.js ***!
-  \*********************************************/
-/*! no static exports found */
-/***/ (function(module, exports) {
-
-/**
- * Removes `key` and its value from the stack.
- *
- * @private
- * @name delete
- * @memberOf Stack
- * @param {string} key The key of the value to remove.
- * @returns {boolean} Returns `true` if the entry was removed, else `false`.
- */
-function stackDelete(key) {
-  var data = this.__data__,
-      result = data['delete'](key);
-
-  this.size = data.size;
-  return result;
-}
-
-module.exports = stackDelete;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_stackGet.js":
-/*!******************************************!*\
-  !*** ./node_modules/lodash/_stackGet.js ***!
-  \******************************************/
-/*! no static exports found */
-/***/ (function(module, exports) {
-
-/**
- * Gets the stack value for `key`.
- *
- * @private
- * @name get
- * @memberOf Stack
- * @param {string} key The key of the value to get.
- * @returns {*} Returns the entry value.
- */
-function stackGet(key) {
-  return this.__data__.get(key);
-}
-
-module.exports = stackGet;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_stackHas.js":
-/*!******************************************!*\
-  !*** ./node_modules/lodash/_stackHas.js ***!
-  \******************************************/
-/*! no static exports found */
-/***/ (function(module, exports) {
-
-/**
- * Checks if a stack value for `key` exists.
- *
- * @private
- * @name has
- * @memberOf Stack
- * @param {string} key The key of the entry to check.
- * @returns {boolean} Returns `true` if an entry for `key` exists, else `false`.
- */
-function stackHas(key) {
-  return this.__data__.has(key);
-}
-
-module.exports = stackHas;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_stackSet.js":
-/*!******************************************!*\
-  !*** ./node_modules/lodash/_stackSet.js ***!
-  \******************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var ListCache = __webpack_require__(/*! ./_ListCache */ "./node_modules/lodash/_ListCache.js"),
-    Map = __webpack_require__(/*! ./_Map */ "./node_modules/lodash/_Map.js"),
-    MapCache = __webpack_require__(/*! ./_MapCache */ "./node_modules/lodash/_MapCache.js");
-
-/** Used as the size to enable large array optimizations. */
-var LARGE_ARRAY_SIZE = 200;
-
-/**
- * Sets the stack `key` to `value`.
- *
- * @private
- * @name set
- * @memberOf Stack
- * @param {string} key The key of the value to set.
- * @param {*} value The value to set.
- * @returns {Object} Returns the stack cache instance.
- */
-function stackSet(key, value) {
-  var data = this.__data__;
-  if (data instanceof ListCache) {
-    var pairs = data.__data__;
-    if (!Map || (pairs.length < LARGE_ARRAY_SIZE - 1)) {
-      pairs.push([key, value]);
-      this.size = ++data.size;
-      return this;
-    }
-    data = this.__data__ = new MapCache(pairs);
-  }
-  data.set(key, value);
-  this.size = data.size;
-  return this;
-}
-
-module.exports = stackSet;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/_strictIndexOf.js":
-/*!***********************************************!*\
-  !*** ./node_modules/lodash/_strictIndexOf.js ***!
-  \***********************************************/
-/*! no static exports found */
-/***/ (function(module, exports) {
-
-/**
- * A specialized version of `_.indexOf` which performs strict equality
- * comparisons of values, i.e. `===`.
+ * Gets the index at which the `key` is found in `array` of key-value pairs.
  *
  * @private
  * @param {Array} array The array to inspect.
- * @param {*} value The value to search for.
- * @param {number} fromIndex The index to search from.
+ * @param {*} key The key to search for.
  * @returns {number} Returns the index of the matched value, else `-1`.
  */
-function strictIndexOf(array, value, fromIndex) {
-  var index = fromIndex - 1,
-      length = array.length;
-
-  while (++index < length) {
-    if (array[index] === value) {
-      return index;
+function assocIndexOf(array, key) {
+  var length = array.length;
+  while (length--) {
+    if (eq(array[length][0], key)) {
+      return length;
     }
   }
   return -1;
 }
 
-module.exports = strictIndexOf;
+/**
+ * The base implementation of `_.get` without support for default values.
+ *
+ * @private
+ * @param {Object} object The object to query.
+ * @param {Array|string} path The path of the property to get.
+ * @returns {*} Returns the resolved value.
+ */
+function baseGet(object, path) {
+  path = isKey(path, object) ? [path] : castPath(path);
 
+  var index = 0,
+      length = path.length;
 
-/***/ }),
+  while (object != null && index < length) {
+    object = object[toKey(path[index++])];
+  }
+  return (index && index == length) ? object : undefined;
+}
 
-/***/ "./node_modules/lodash/_toSource.js":
-/*!******************************************!*\
-  !*** ./node_modules/lodash/_toSource.js ***!
-  \******************************************/
-/*! no static exports found */
-/***/ (function(module, exports) {
+/**
+ * The base implementation of `_.isNative` without bad shim checks.
+ *
+ * @private
+ * @param {*} value The value to check.
+ * @returns {boolean} Returns `true` if `value` is a native function,
+ *  else `false`.
+ */
+function baseIsNative(value) {
+  if (!isObject(value) || isMasked(value)) {
+    return false;
+  }
+  var pattern = (isFunction(value) || isHostObject(value)) ? reIsNative : reIsHostCtor;
+  return pattern.test(toSource(value));
+}
 
-/** Used for built-in method references. */
-var funcProto = Function.prototype;
+/**
+ * The base implementation of `_.toString` which doesn't convert nullish
+ * values to empty strings.
+ *
+ * @private
+ * @param {*} value The value to process.
+ * @returns {string} Returns the string.
+ */
+function baseToString(value) {
+  // Exit early for strings to avoid a performance hit in some environments.
+  if (typeof value == 'string') {
+    return value;
+  }
+  if (isSymbol(value)) {
+    return symbolToString ? symbolToString.call(value) : '';
+  }
+  var result = (value + '');
+  return (result == '0' && (1 / value) == -INFINITY) ? '-0' : result;
+}
 
-/** Used to resolve the decompiled source of functions. */
-var funcToString = funcProto.toString;
+/**
+ * Casts `value` to a path array if it's not one.
+ *
+ * @private
+ * @param {*} value The value to inspect.
+ * @returns {Array} Returns the cast property path array.
+ */
+function castPath(value) {
+  return isArray(value) ? value : stringToPath(value);
+}
+
+/**
+ * Gets the data for `map`.
+ *
+ * @private
+ * @param {Object} map The map to query.
+ * @param {string} key The reference key.
+ * @returns {*} Returns the map data.
+ */
+function getMapData(map, key) {
+  var data = map.__data__;
+  return isKeyable(key)
+    ? data[typeof key == 'string' ? 'string' : 'hash']
+    : data.map;
+}
+
+/**
+ * Gets the native function at `key` of `object`.
+ *
+ * @private
+ * @param {Object} object The object to query.
+ * @param {string} key The key of the method to get.
+ * @returns {*} Returns the function if it's native, else `undefined`.
+ */
+function getNative(object, key) {
+  var value = getValue(object, key);
+  return baseIsNative(value) ? value : undefined;
+}
+
+/**
+ * Checks if `value` is a property name and not a property path.
+ *
+ * @private
+ * @param {*} value The value to check.
+ * @param {Object} [object] The object to query keys on.
+ * @returns {boolean} Returns `true` if `value` is a property name, else `false`.
+ */
+function isKey(value, object) {
+  if (isArray(value)) {
+    return false;
+  }
+  var type = typeof value;
+  if (type == 'number' || type == 'symbol' || type == 'boolean' ||
+      value == null || isSymbol(value)) {
+    return true;
+  }
+  return reIsPlainProp.test(value) || !reIsDeepProp.test(value) ||
+    (object != null && value in Object(object));
+}
+
+/**
+ * Checks if `value` is suitable for use as unique object key.
+ *
+ * @private
+ * @param {*} value The value to check.
+ * @returns {boolean} Returns `true` if `value` is suitable, else `false`.
+ */
+function isKeyable(value) {
+  var type = typeof value;
+  return (type == 'string' || type == 'number' || type == 'symbol' || type == 'boolean')
+    ? (value !== '__proto__')
+    : (value === null);
+}
+
+/**
+ * Checks if `func` has its source masked.
+ *
+ * @private
+ * @param {Function} func The function to check.
+ * @returns {boolean} Returns `true` if `func` is masked, else `false`.
+ */
+function isMasked(func) {
+  return !!maskSrcKey && (maskSrcKey in func);
+}
+
+/**
+ * Converts `string` to a property path array.
+ *
+ * @private
+ * @param {string} string The string to convert.
+ * @returns {Array} Returns the property path array.
+ */
+var stringToPath = memoize(function(string) {
+  string = toString(string);
+
+  var result = [];
+  if (reLeadingDot.test(string)) {
+    result.push('');
+  }
+  string.replace(rePropName, function(match, number, quote, string) {
+    result.push(quote ? string.replace(reEscapeChar, '$1') : (number || match));
+  });
+  return result;
+});
+
+/**
+ * Converts `value` to a string key if it's not a string or symbol.
+ *
+ * @private
+ * @param {*} value The value to inspect.
+ * @returns {string|symbol} Returns the key.
+ */
+function toKey(value) {
+  if (typeof value == 'string' || isSymbol(value)) {
+    return value;
+  }
+  var result = (value + '');
+  return (result == '0' && (1 / value) == -INFINITY) ? '-0' : result;
+}
 
 /**
  * Converts `func` to its source code.
  *
  * @private
- * @param {Function} func The function to convert.
+ * @param {Function} func The function to process.
  * @returns {string} Returns the source code.
  */
 function toSource(func) {
@@ -18141,54 +15953,72 @@ function toSource(func) {
   return '';
 }
 
-module.exports = toSource;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/constant.js":
-/*!*****************************************!*\
-  !*** ./node_modules/lodash/constant.js ***!
-  \*****************************************/
-/*! no static exports found */
-/***/ (function(module, exports) {
-
 /**
- * Creates a function that returns `value`.
+ * Creates a function that memoizes the result of `func`. If `resolver` is
+ * provided, it determines the cache key for storing the result based on the
+ * arguments provided to the memoized function. By default, the first argument
+ * provided to the memoized function is used as the map cache key. The `func`
+ * is invoked with the `this` binding of the memoized function.
+ *
+ * **Note:** The cache is exposed as the `cache` property on the memoized
+ * function. Its creation may be customized by replacing the `_.memoize.Cache`
+ * constructor with one whose instances implement the
+ * [`Map`](http://ecma-international.org/ecma-262/7.0/#sec-properties-of-the-map-prototype-object)
+ * method interface of `delete`, `get`, `has`, and `set`.
  *
  * @static
  * @memberOf _
- * @since 2.4.0
- * @category Util
- * @param {*} value The value to return from the new function.
- * @returns {Function} Returns the new constant function.
+ * @since 0.1.0
+ * @category Function
+ * @param {Function} func The function to have its output memoized.
+ * @param {Function} [resolver] The function to resolve the cache key.
+ * @returns {Function} Returns the new memoized function.
  * @example
  *
- * var objects = _.times(2, _.constant({ 'a': 1 }));
+ * var object = { 'a': 1, 'b': 2 };
+ * var other = { 'c': 3, 'd': 4 };
  *
- * console.log(objects);
- * // => [{ 'a': 1 }, { 'a': 1 }]
+ * var values = _.memoize(_.values);
+ * values(object);
+ * // => [1, 2]
  *
- * console.log(objects[0] === objects[1]);
- * // => true
+ * values(other);
+ * // => [3, 4]
+ *
+ * object.a = 2;
+ * values(object);
+ * // => [1, 2]
+ *
+ * // Modify the result cache.
+ * values.cache.set(object, ['a', 'b']);
+ * values(object);
+ * // => ['a', 'b']
+ *
+ * // Replace `_.memoize.Cache`.
+ * _.memoize.Cache = WeakMap;
  */
-function constant(value) {
-  return function() {
-    return value;
+function memoize(func, resolver) {
+  if (typeof func != 'function' || (resolver && typeof resolver != 'function')) {
+    throw new TypeError(FUNC_ERROR_TEXT);
+  }
+  var memoized = function() {
+    var args = arguments,
+        key = resolver ? resolver.apply(this, args) : args[0],
+        cache = memoized.cache;
+
+    if (cache.has(key)) {
+      return cache.get(key);
+    }
+    var result = func.apply(this, args);
+    memoized.cache = cache.set(key, result);
+    return result;
   };
+  memoized.cache = new (memoize.Cache || MapCache);
+  return memoized;
 }
 
-module.exports = constant;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/eq.js":
-/*!***********************************!*\
-  !*** ./node_modules/lodash/eq.js ***!
-  \***********************************/
-/*! no static exports found */
-/***/ (function(module, exports) {
+// Assign cache to `_.memoize`.
+memoize.Cache = MapCache;
 
 /**
  * Performs a
@@ -18226,97 +16056,6 @@ function eq(value, other) {
   return value === other || (value !== value && other !== other);
 }
 
-module.exports = eq;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/identity.js":
-/*!*****************************************!*\
-  !*** ./node_modules/lodash/identity.js ***!
-  \*****************************************/
-/*! no static exports found */
-/***/ (function(module, exports) {
-
-/**
- * This method returns the first argument it receives.
- *
- * @static
- * @since 0.1.0
- * @memberOf _
- * @category Util
- * @param {*} value Any value.
- * @returns {*} Returns `value`.
- * @example
- *
- * var object = { 'a': 1 };
- *
- * console.log(_.identity(object) === object);
- * // => true
- */
-function identity(value) {
-  return value;
-}
-
-module.exports = identity;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/isArguments.js":
-/*!********************************************!*\
-  !*** ./node_modules/lodash/isArguments.js ***!
-  \********************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var baseIsArguments = __webpack_require__(/*! ./_baseIsArguments */ "./node_modules/lodash/_baseIsArguments.js"),
-    isObjectLike = __webpack_require__(/*! ./isObjectLike */ "./node_modules/lodash/isObjectLike.js");
-
-/** Used for built-in method references. */
-var objectProto = Object.prototype;
-
-/** Used to check objects for own properties. */
-var hasOwnProperty = objectProto.hasOwnProperty;
-
-/** Built-in value references. */
-var propertyIsEnumerable = objectProto.propertyIsEnumerable;
-
-/**
- * Checks if `value` is likely an `arguments` object.
- *
- * @static
- * @memberOf _
- * @since 0.1.0
- * @category Lang
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is an `arguments` object,
- *  else `false`.
- * @example
- *
- * _.isArguments(function() { return arguments; }());
- * // => true
- *
- * _.isArguments([1, 2, 3]);
- * // => false
- */
-var isArguments = baseIsArguments(function() { return arguments; }()) ? baseIsArguments : function(value) {
-  return isObjectLike(value) && hasOwnProperty.call(value, 'callee') &&
-    !propertyIsEnumerable.call(value, 'callee');
-};
-
-module.exports = isArguments;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/isArray.js":
-/*!****************************************!*\
-  !*** ./node_modules/lodash/isArray.js ***!
-  \****************************************/
-/*! no static exports found */
-/***/ (function(module, exports) {
-
 /**
  * Checks if `value` is classified as an `Array` object.
  *
@@ -18342,165 +16081,6 @@ module.exports = isArguments;
  */
 var isArray = Array.isArray;
 
-module.exports = isArray;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/isArrayLike.js":
-/*!********************************************!*\
-  !*** ./node_modules/lodash/isArrayLike.js ***!
-  \********************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var isFunction = __webpack_require__(/*! ./isFunction */ "./node_modules/lodash/isFunction.js"),
-    isLength = __webpack_require__(/*! ./isLength */ "./node_modules/lodash/isLength.js");
-
-/**
- * Checks if `value` is array-like. A value is considered array-like if it's
- * not a function and has a `value.length` that's an integer greater than or
- * equal to `0` and less than or equal to `Number.MAX_SAFE_INTEGER`.
- *
- * @static
- * @memberOf _
- * @since 4.0.0
- * @category Lang
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is array-like, else `false`.
- * @example
- *
- * _.isArrayLike([1, 2, 3]);
- * // => true
- *
- * _.isArrayLike(document.body.children);
- * // => true
- *
- * _.isArrayLike('abc');
- * // => true
- *
- * _.isArrayLike(_.noop);
- * // => false
- */
-function isArrayLike(value) {
-  return value != null && isLength(value.length) && !isFunction(value);
-}
-
-module.exports = isArrayLike;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/isArrayLikeObject.js":
-/*!**************************************************!*\
-  !*** ./node_modules/lodash/isArrayLikeObject.js ***!
-  \**************************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var isArrayLike = __webpack_require__(/*! ./isArrayLike */ "./node_modules/lodash/isArrayLike.js"),
-    isObjectLike = __webpack_require__(/*! ./isObjectLike */ "./node_modules/lodash/isObjectLike.js");
-
-/**
- * This method is like `_.isArrayLike` except that it also checks if `value`
- * is an object.
- *
- * @static
- * @memberOf _
- * @since 4.0.0
- * @category Lang
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is an array-like object,
- *  else `false`.
- * @example
- *
- * _.isArrayLikeObject([1, 2, 3]);
- * // => true
- *
- * _.isArrayLikeObject(document.body.children);
- * // => true
- *
- * _.isArrayLikeObject('abc');
- * // => false
- *
- * _.isArrayLikeObject(_.noop);
- * // => false
- */
-function isArrayLikeObject(value) {
-  return isObjectLike(value) && isArrayLike(value);
-}
-
-module.exports = isArrayLikeObject;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/isBuffer.js":
-/*!*****************************************!*\
-  !*** ./node_modules/lodash/isBuffer.js ***!
-  \*****************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-/* WEBPACK VAR INJECTION */(function(module) {var root = __webpack_require__(/*! ./_root */ "./node_modules/lodash/_root.js"),
-    stubFalse = __webpack_require__(/*! ./stubFalse */ "./node_modules/lodash/stubFalse.js");
-
-/** Detect free variable `exports`. */
-var freeExports = typeof exports == 'object' && exports && !exports.nodeType && exports;
-
-/** Detect free variable `module`. */
-var freeModule = freeExports && typeof module == 'object' && module && !module.nodeType && module;
-
-/** Detect the popular CommonJS extension `module.exports`. */
-var moduleExports = freeModule && freeModule.exports === freeExports;
-
-/** Built-in value references. */
-var Buffer = moduleExports ? root.Buffer : undefined;
-
-/* Built-in method references for those with the same name as other `lodash` methods. */
-var nativeIsBuffer = Buffer ? Buffer.isBuffer : undefined;
-
-/**
- * Checks if `value` is a buffer.
- *
- * @static
- * @memberOf _
- * @since 4.3.0
- * @category Lang
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is a buffer, else `false`.
- * @example
- *
- * _.isBuffer(new Buffer(2));
- * // => true
- *
- * _.isBuffer(new Uint8Array(2));
- * // => false
- */
-var isBuffer = nativeIsBuffer || stubFalse;
-
-module.exports = isBuffer;
-
-/* WEBPACK VAR INJECTION */}.call(this, __webpack_require__(/*! ./../webpack/buildin/module.js */ "./node_modules/webpack/buildin/module.js")(module)))
-
-/***/ }),
-
-/***/ "./node_modules/lodash/isFunction.js":
-/*!*******************************************!*\
-  !*** ./node_modules/lodash/isFunction.js ***!
-  \*******************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var baseGetTag = __webpack_require__(/*! ./_baseGetTag */ "./node_modules/lodash/_baseGetTag.js"),
-    isObject = __webpack_require__(/*! ./isObject */ "./node_modules/lodash/isObject.js");
-
-/** `Object#toString` result references. */
-var asyncTag = '[object AsyncFunction]',
-    funcTag = '[object Function]',
-    genTag = '[object GeneratorFunction]',
-    proxyTag = '[object Proxy]';
-
 /**
  * Checks if `value` is classified as a `Function` object.
  *
@@ -18519,72 +16099,11 @@ var asyncTag = '[object AsyncFunction]',
  * // => false
  */
 function isFunction(value) {
-  if (!isObject(value)) {
-    return false;
-  }
   // The use of `Object#toString` avoids issues with the `typeof` operator
-  // in Safari 9 which returns 'object' for typed arrays and other constructors.
-  var tag = baseGetTag(value);
-  return tag == funcTag || tag == genTag || tag == asyncTag || tag == proxyTag;
+  // in Safari 8-9 which returns 'object' for typed array and other constructors.
+  var tag = isObject(value) ? objectToString.call(value) : '';
+  return tag == funcTag || tag == genTag;
 }
-
-module.exports = isFunction;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/isLength.js":
-/*!*****************************************!*\
-  !*** ./node_modules/lodash/isLength.js ***!
-  \*****************************************/
-/*! no static exports found */
-/***/ (function(module, exports) {
-
-/** Used as references for various `Number` constants. */
-var MAX_SAFE_INTEGER = 9007199254740991;
-
-/**
- * Checks if `value` is a valid array-like length.
- *
- * **Note:** This method is loosely based on
- * [`ToLength`](http://ecma-international.org/ecma-262/7.0/#sec-tolength).
- *
- * @static
- * @memberOf _
- * @since 4.0.0
- * @category Lang
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is a valid length, else `false`.
- * @example
- *
- * _.isLength(3);
- * // => true
- *
- * _.isLength(Number.MIN_VALUE);
- * // => false
- *
- * _.isLength(Infinity);
- * // => false
- *
- * _.isLength('3');
- * // => false
- */
-function isLength(value) {
-  return typeof value == 'number' &&
-    value > -1 && value % 1 == 0 && value <= MAX_SAFE_INTEGER;
-}
-
-module.exports = isLength;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/isObject.js":
-/*!*****************************************!*\
-  !*** ./node_modules/lodash/isObject.js ***!
-  \*****************************************/
-/*! no static exports found */
-/***/ (function(module, exports) {
 
 /**
  * Checks if `value` is the
@@ -18613,20 +16132,8 @@ module.exports = isLength;
  */
 function isObject(value) {
   var type = typeof value;
-  return value != null && (type == 'object' || type == 'function');
+  return !!value && (type == 'object' || type == 'function');
 }
-
-module.exports = isObject;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/isObjectLike.js":
-/*!*********************************************!*\
-  !*** ./node_modules/lodash/isObjectLike.js ***!
-  \*********************************************/
-/*! no static exports found */
-/***/ (function(module, exports) {
 
 /**
  * Checks if `value` is object-like. A value is object-like if it's not `null`
@@ -18653,31 +16160,211 @@ module.exports = isObject;
  * // => false
  */
 function isObjectLike(value) {
-  return value != null && typeof value == 'object';
+  return !!value && typeof value == 'object';
 }
 
-module.exports = isObjectLike;
+/**
+ * Checks if `value` is classified as a `Symbol` primitive or object.
+ *
+ * @static
+ * @memberOf _
+ * @since 4.0.0
+ * @category Lang
+ * @param {*} value The value to check.
+ * @returns {boolean} Returns `true` if `value` is a symbol, else `false`.
+ * @example
+ *
+ * _.isSymbol(Symbol.iterator);
+ * // => true
+ *
+ * _.isSymbol('abc');
+ * // => false
+ */
+function isSymbol(value) {
+  return typeof value == 'symbol' ||
+    (isObjectLike(value) && objectToString.call(value) == symbolTag);
+}
 
+/**
+ * Converts `value` to a string. An empty string is returned for `null`
+ * and `undefined` values. The sign of `-0` is preserved.
+ *
+ * @static
+ * @memberOf _
+ * @since 4.0.0
+ * @category Lang
+ * @param {*} value The value to process.
+ * @returns {string} Returns the string.
+ * @example
+ *
+ * _.toString(null);
+ * // => ''
+ *
+ * _.toString(-0);
+ * // => '-0'
+ *
+ * _.toString([1, 2, 3]);
+ * // => '1,2,3'
+ */
+function toString(value) {
+  return value == null ? '' : baseToString(value);
+}
+
+/**
+ * Gets the value at `path` of `object`. If the resolved value is
+ * `undefined`, the `defaultValue` is returned in its place.
+ *
+ * @static
+ * @memberOf _
+ * @since 3.7.0
+ * @category Object
+ * @param {Object} object The object to query.
+ * @param {Array|string} path The path of the property to get.
+ * @param {*} [defaultValue] The value returned for `undefined` resolved values.
+ * @returns {*} Returns the resolved value.
+ * @example
+ *
+ * var object = { 'a': [{ 'b': { 'c': 3 } }] };
+ *
+ * _.get(object, 'a[0].b.c');
+ * // => 3
+ *
+ * _.get(object, ['a', '0', 'b', 'c']);
+ * // => 3
+ *
+ * _.get(object, 'a.b.c', 'default');
+ * // => 'default'
+ */
+function get(object, path, defaultValue) {
+  var result = object == null ? undefined : baseGet(object, path);
+  return result === undefined ? defaultValue : result;
+}
+
+module.exports = get;
+
+/* WEBPACK VAR INJECTION */}.call(this, __webpack_require__(/*! ./../webpack/buildin/global.js */ "./node_modules/webpack/buildin/global.js")))
 
 /***/ }),
 
-/***/ "./node_modules/lodash/isPlainObject.js":
-/*!**********************************************!*\
-  !*** ./node_modules/lodash/isPlainObject.js ***!
-  \**********************************************/
+/***/ "./node_modules/lodash.topath/index.js":
+/*!*********************************************!*\
+  !*** ./node_modules/lodash.topath/index.js ***!
+  \*********************************************/
 /*! no static exports found */
 /***/ (function(module, exports, __webpack_require__) {
 
-var baseGetTag = __webpack_require__(/*! ./_baseGetTag */ "./node_modules/lodash/_baseGetTag.js"),
-    getPrototype = __webpack_require__(/*! ./_getPrototype */ "./node_modules/lodash/_getPrototype.js"),
-    isObjectLike = __webpack_require__(/*! ./isObjectLike */ "./node_modules/lodash/isObjectLike.js");
+/* WEBPACK VAR INJECTION */(function(global) {/**
+ * lodash (Custom Build) <https://lodash.com/>
+ * Build: `lodash modularize exports="npm" -o ./`
+ * Copyright jQuery Foundation and other contributors <https://jquery.org/>
+ * Released under MIT license <https://lodash.com/license>
+ * Based on Underscore.js 1.8.3 <http://underscorejs.org/LICENSE>
+ * Copyright Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
+ */
+
+/** Used as the `TypeError` message for "Functions" methods. */
+var FUNC_ERROR_TEXT = 'Expected a function';
+
+/** Used to stand-in for `undefined` hash values. */
+var HASH_UNDEFINED = '__lodash_hash_undefined__';
+
+/** Used as references for various `Number` constants. */
+var INFINITY = 1 / 0;
 
 /** `Object#toString` result references. */
-var objectTag = '[object Object]';
+var funcTag = '[object Function]',
+    genTag = '[object GeneratorFunction]',
+    symbolTag = '[object Symbol]';
+
+/** Used to match property names within property paths. */
+var reLeadingDot = /^\./,
+    rePropName = /[^.[\]]+|\[(?:(-?\d+(?:\.\d+)?)|(["'])((?:(?!\2)[^\\]|\\.)*?)\2)\]|(?=(?:\.|\[\])(?:\.|\[\]|$))/g;
+
+/**
+ * Used to match `RegExp`
+ * [syntax characters](http://ecma-international.org/ecma-262/7.0/#sec-patterns).
+ */
+var reRegExpChar = /[\\^$.*+?()[\]{}|]/g;
+
+/** Used to match backslashes in property paths. */
+var reEscapeChar = /\\(\\)?/g;
+
+/** Used to detect host constructors (Safari). */
+var reIsHostCtor = /^\[object .+?Constructor\]$/;
+
+/** Detect free variable `global` from Node.js. */
+var freeGlobal = typeof global == 'object' && global && global.Object === Object && global;
+
+/** Detect free variable `self`. */
+var freeSelf = typeof self == 'object' && self && self.Object === Object && self;
+
+/** Used as a reference to the global object. */
+var root = freeGlobal || freeSelf || Function('return this')();
+
+/**
+ * A specialized version of `_.map` for arrays without support for iteratee
+ * shorthands.
+ *
+ * @private
+ * @param {Array} [array] The array to iterate over.
+ * @param {Function} iteratee The function invoked per iteration.
+ * @returns {Array} Returns the new mapped array.
+ */
+function arrayMap(array, iteratee) {
+  var index = -1,
+      length = array ? array.length : 0,
+      result = Array(length);
+
+  while (++index < length) {
+    result[index] = iteratee(array[index], index, array);
+  }
+  return result;
+}
+
+/**
+ * Gets the value at `key` of `object`.
+ *
+ * @private
+ * @param {Object} [object] The object to query.
+ * @param {string} key The key of the property to get.
+ * @returns {*} Returns the property value.
+ */
+function getValue(object, key) {
+  return object == null ? undefined : object[key];
+}
+
+/**
+ * Checks if `value` is a host object in IE < 9.
+ *
+ * @private
+ * @param {*} value The value to check.
+ * @returns {boolean} Returns `true` if `value` is a host object, else `false`.
+ */
+function isHostObject(value) {
+  // Many host objects are `Object` objects that can coerce to strings
+  // despite having improperly defined `toString` methods.
+  var result = false;
+  if (value != null && typeof value.toString != 'function') {
+    try {
+      result = !!(value + '');
+    } catch (e) {}
+  }
+  return result;
+}
 
 /** Used for built-in method references. */
-var funcProto = Function.prototype,
+var arrayProto = Array.prototype,
+    funcProto = Function.prototype,
     objectProto = Object.prototype;
+
+/** Used to detect overreaching core-js shims. */
+var coreJsData = root['__core-js_shared__'];
+
+/** Used to detect methods masquerading as native. */
+var maskSrcKey = (function() {
+  var uid = /[^.]+$/.exec(coreJsData && coreJsData.keys && coreJsData.keys.IE_PROTO || '');
+  return uid ? ('Symbol(src)_1.' + uid) : '';
+}());
 
 /** Used to resolve the decompiled source of functions. */
 var funcToString = funcProto.toString;
@@ -18685,320 +16372,799 @@ var funcToString = funcProto.toString;
 /** Used to check objects for own properties. */
 var hasOwnProperty = objectProto.hasOwnProperty;
 
-/** Used to infer the `Object` constructor. */
-var objectCtorString = funcToString.call(Object);
+/**
+ * Used to resolve the
+ * [`toStringTag`](http://ecma-international.org/ecma-262/7.0/#sec-object.prototype.tostring)
+ * of values.
+ */
+var objectToString = objectProto.toString;
+
+/** Used to detect if a method is native. */
+var reIsNative = RegExp('^' +
+  funcToString.call(hasOwnProperty).replace(reRegExpChar, '\\$&')
+  .replace(/hasOwnProperty|(function).*?(?=\\\()| for .+?(?=\\\])/g, '$1.*?') + '$'
+);
+
+/** Built-in value references. */
+var Symbol = root.Symbol,
+    splice = arrayProto.splice;
+
+/* Built-in method references that are verified to be native. */
+var Map = getNative(root, 'Map'),
+    nativeCreate = getNative(Object, 'create');
+
+/** Used to convert symbols to primitives and strings. */
+var symbolProto = Symbol ? Symbol.prototype : undefined,
+    symbolToString = symbolProto ? symbolProto.toString : undefined;
 
 /**
- * Checks if `value` is a plain object, that is, an object created by the
- * `Object` constructor or one with a `[[Prototype]]` of `null`.
+ * Creates a hash object.
  *
- * @static
- * @memberOf _
- * @since 0.8.0
- * @category Lang
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is a plain object, else `false`.
- * @example
- *
- * function Foo() {
- *   this.a = 1;
- * }
- *
- * _.isPlainObject(new Foo);
- * // => false
- *
- * _.isPlainObject([1, 2, 3]);
- * // => false
- *
- * _.isPlainObject({ 'x': 0, 'y': 0 });
- * // => true
- *
- * _.isPlainObject(Object.create(null));
- * // => true
+ * @private
+ * @constructor
+ * @param {Array} [entries] The key-value pairs to cache.
  */
-function isPlainObject(value) {
-  if (!isObjectLike(value) || baseGetTag(value) != objectTag) {
+function Hash(entries) {
+  var index = -1,
+      length = entries ? entries.length : 0;
+
+  this.clear();
+  while (++index < length) {
+    var entry = entries[index];
+    this.set(entry[0], entry[1]);
+  }
+}
+
+/**
+ * Removes all key-value entries from the hash.
+ *
+ * @private
+ * @name clear
+ * @memberOf Hash
+ */
+function hashClear() {
+  this.__data__ = nativeCreate ? nativeCreate(null) : {};
+}
+
+/**
+ * Removes `key` and its value from the hash.
+ *
+ * @private
+ * @name delete
+ * @memberOf Hash
+ * @param {Object} hash The hash to modify.
+ * @param {string} key The key of the value to remove.
+ * @returns {boolean} Returns `true` if the entry was removed, else `false`.
+ */
+function hashDelete(key) {
+  return this.has(key) && delete this.__data__[key];
+}
+
+/**
+ * Gets the hash value for `key`.
+ *
+ * @private
+ * @name get
+ * @memberOf Hash
+ * @param {string} key The key of the value to get.
+ * @returns {*} Returns the entry value.
+ */
+function hashGet(key) {
+  var data = this.__data__;
+  if (nativeCreate) {
+    var result = data[key];
+    return result === HASH_UNDEFINED ? undefined : result;
+  }
+  return hasOwnProperty.call(data, key) ? data[key] : undefined;
+}
+
+/**
+ * Checks if a hash value for `key` exists.
+ *
+ * @private
+ * @name has
+ * @memberOf Hash
+ * @param {string} key The key of the entry to check.
+ * @returns {boolean} Returns `true` if an entry for `key` exists, else `false`.
+ */
+function hashHas(key) {
+  var data = this.__data__;
+  return nativeCreate ? data[key] !== undefined : hasOwnProperty.call(data, key);
+}
+
+/**
+ * Sets the hash `key` to `value`.
+ *
+ * @private
+ * @name set
+ * @memberOf Hash
+ * @param {string} key The key of the value to set.
+ * @param {*} value The value to set.
+ * @returns {Object} Returns the hash instance.
+ */
+function hashSet(key, value) {
+  var data = this.__data__;
+  data[key] = (nativeCreate && value === undefined) ? HASH_UNDEFINED : value;
+  return this;
+}
+
+// Add methods to `Hash`.
+Hash.prototype.clear = hashClear;
+Hash.prototype['delete'] = hashDelete;
+Hash.prototype.get = hashGet;
+Hash.prototype.has = hashHas;
+Hash.prototype.set = hashSet;
+
+/**
+ * Creates an list cache object.
+ *
+ * @private
+ * @constructor
+ * @param {Array} [entries] The key-value pairs to cache.
+ */
+function ListCache(entries) {
+  var index = -1,
+      length = entries ? entries.length : 0;
+
+  this.clear();
+  while (++index < length) {
+    var entry = entries[index];
+    this.set(entry[0], entry[1]);
+  }
+}
+
+/**
+ * Removes all key-value entries from the list cache.
+ *
+ * @private
+ * @name clear
+ * @memberOf ListCache
+ */
+function listCacheClear() {
+  this.__data__ = [];
+}
+
+/**
+ * Removes `key` and its value from the list cache.
+ *
+ * @private
+ * @name delete
+ * @memberOf ListCache
+ * @param {string} key The key of the value to remove.
+ * @returns {boolean} Returns `true` if the entry was removed, else `false`.
+ */
+function listCacheDelete(key) {
+  var data = this.__data__,
+      index = assocIndexOf(data, key);
+
+  if (index < 0) {
     return false;
   }
-  var proto = getPrototype(value);
-  if (proto === null) {
-    return true;
+  var lastIndex = data.length - 1;
+  if (index == lastIndex) {
+    data.pop();
+  } else {
+    splice.call(data, index, 1);
   }
-  var Ctor = hasOwnProperty.call(proto, 'constructor') && proto.constructor;
-  return typeof Ctor == 'function' && Ctor instanceof Ctor &&
-    funcToString.call(Ctor) == objectCtorString;
+  return true;
 }
 
-module.exports = isPlainObject;
+/**
+ * Gets the list cache value for `key`.
+ *
+ * @private
+ * @name get
+ * @memberOf ListCache
+ * @param {string} key The key of the value to get.
+ * @returns {*} Returns the entry value.
+ */
+function listCacheGet(key) {
+  var data = this.__data__,
+      index = assocIndexOf(data, key);
 
-
-/***/ }),
-
-/***/ "./node_modules/lodash/isTypedArray.js":
-/*!*********************************************!*\
-  !*** ./node_modules/lodash/isTypedArray.js ***!
-  \*********************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var baseIsTypedArray = __webpack_require__(/*! ./_baseIsTypedArray */ "./node_modules/lodash/_baseIsTypedArray.js"),
-    baseUnary = __webpack_require__(/*! ./_baseUnary */ "./node_modules/lodash/_baseUnary.js"),
-    nodeUtil = __webpack_require__(/*! ./_nodeUtil */ "./node_modules/lodash/_nodeUtil.js");
-
-/* Node.js helper references. */
-var nodeIsTypedArray = nodeUtil && nodeUtil.isTypedArray;
+  return index < 0 ? undefined : data[index][1];
+}
 
 /**
- * Checks if `value` is classified as a typed array.
+ * Checks if a list cache value for `key` exists.
  *
- * @static
- * @memberOf _
- * @since 3.0.0
- * @category Lang
+ * @private
+ * @name has
+ * @memberOf ListCache
+ * @param {string} key The key of the entry to check.
+ * @returns {boolean} Returns `true` if an entry for `key` exists, else `false`.
+ */
+function listCacheHas(key) {
+  return assocIndexOf(this.__data__, key) > -1;
+}
+
+/**
+ * Sets the list cache `key` to `value`.
+ *
+ * @private
+ * @name set
+ * @memberOf ListCache
+ * @param {string} key The key of the value to set.
+ * @param {*} value The value to set.
+ * @returns {Object} Returns the list cache instance.
+ */
+function listCacheSet(key, value) {
+  var data = this.__data__,
+      index = assocIndexOf(data, key);
+
+  if (index < 0) {
+    data.push([key, value]);
+  } else {
+    data[index][1] = value;
+  }
+  return this;
+}
+
+// Add methods to `ListCache`.
+ListCache.prototype.clear = listCacheClear;
+ListCache.prototype['delete'] = listCacheDelete;
+ListCache.prototype.get = listCacheGet;
+ListCache.prototype.has = listCacheHas;
+ListCache.prototype.set = listCacheSet;
+
+/**
+ * Creates a map cache object to store key-value pairs.
+ *
+ * @private
+ * @constructor
+ * @param {Array} [entries] The key-value pairs to cache.
+ */
+function MapCache(entries) {
+  var index = -1,
+      length = entries ? entries.length : 0;
+
+  this.clear();
+  while (++index < length) {
+    var entry = entries[index];
+    this.set(entry[0], entry[1]);
+  }
+}
+
+/**
+ * Removes all key-value entries from the map.
+ *
+ * @private
+ * @name clear
+ * @memberOf MapCache
+ */
+function mapCacheClear() {
+  this.__data__ = {
+    'hash': new Hash,
+    'map': new (Map || ListCache),
+    'string': new Hash
+  };
+}
+
+/**
+ * Removes `key` and its value from the map.
+ *
+ * @private
+ * @name delete
+ * @memberOf MapCache
+ * @param {string} key The key of the value to remove.
+ * @returns {boolean} Returns `true` if the entry was removed, else `false`.
+ */
+function mapCacheDelete(key) {
+  return getMapData(this, key)['delete'](key);
+}
+
+/**
+ * Gets the map value for `key`.
+ *
+ * @private
+ * @name get
+ * @memberOf MapCache
+ * @param {string} key The key of the value to get.
+ * @returns {*} Returns the entry value.
+ */
+function mapCacheGet(key) {
+  return getMapData(this, key).get(key);
+}
+
+/**
+ * Checks if a map value for `key` exists.
+ *
+ * @private
+ * @name has
+ * @memberOf MapCache
+ * @param {string} key The key of the entry to check.
+ * @returns {boolean} Returns `true` if an entry for `key` exists, else `false`.
+ */
+function mapCacheHas(key) {
+  return getMapData(this, key).has(key);
+}
+
+/**
+ * Sets the map `key` to `value`.
+ *
+ * @private
+ * @name set
+ * @memberOf MapCache
+ * @param {string} key The key of the value to set.
+ * @param {*} value The value to set.
+ * @returns {Object} Returns the map cache instance.
+ */
+function mapCacheSet(key, value) {
+  getMapData(this, key).set(key, value);
+  return this;
+}
+
+// Add methods to `MapCache`.
+MapCache.prototype.clear = mapCacheClear;
+MapCache.prototype['delete'] = mapCacheDelete;
+MapCache.prototype.get = mapCacheGet;
+MapCache.prototype.has = mapCacheHas;
+MapCache.prototype.set = mapCacheSet;
+
+/**
+ * Gets the index at which the `key` is found in `array` of key-value pairs.
+ *
+ * @private
+ * @param {Array} array The array to inspect.
+ * @param {*} key The key to search for.
+ * @returns {number} Returns the index of the matched value, else `-1`.
+ */
+function assocIndexOf(array, key) {
+  var length = array.length;
+  while (length--) {
+    if (eq(array[length][0], key)) {
+      return length;
+    }
+  }
+  return -1;
+}
+
+/**
+ * The base implementation of `_.isNative` without bad shim checks.
+ *
+ * @private
  * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is a typed array, else `false`.
- * @example
- *
- * _.isTypedArray(new Uint8Array);
- * // => true
- *
- * _.isTypedArray([]);
- * // => false
+ * @returns {boolean} Returns `true` if `value` is a native function,
+ *  else `false`.
  */
-var isTypedArray = nodeIsTypedArray ? baseUnary(nodeIsTypedArray) : baseIsTypedArray;
-
-module.exports = isTypedArray;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/keysIn.js":
-/*!***************************************!*\
-  !*** ./node_modules/lodash/keysIn.js ***!
-  \***************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var arrayLikeKeys = __webpack_require__(/*! ./_arrayLikeKeys */ "./node_modules/lodash/_arrayLikeKeys.js"),
-    baseKeysIn = __webpack_require__(/*! ./_baseKeysIn */ "./node_modules/lodash/_baseKeysIn.js"),
-    isArrayLike = __webpack_require__(/*! ./isArrayLike */ "./node_modules/lodash/isArrayLike.js");
-
-/**
- * Creates an array of the own and inherited enumerable property names of `object`.
- *
- * **Note:** Non-object values are coerced to objects.
- *
- * @static
- * @memberOf _
- * @since 3.0.0
- * @category Object
- * @param {Object} object The object to query.
- * @returns {Array} Returns the array of property names.
- * @example
- *
- * function Foo() {
- *   this.a = 1;
- *   this.b = 2;
- * }
- *
- * Foo.prototype.c = 3;
- *
- * _.keysIn(new Foo);
- * // => ['a', 'b', 'c'] (iteration order is not guaranteed)
- */
-function keysIn(object) {
-  return isArrayLike(object) ? arrayLikeKeys(object, true) : baseKeysIn(object);
+function baseIsNative(value) {
+  if (!isObject(value) || isMasked(value)) {
+    return false;
+  }
+  var pattern = (isFunction(value) || isHostObject(value)) ? reIsNative : reIsHostCtor;
+  return pattern.test(toSource(value));
 }
 
-module.exports = keysIn;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/merge.js":
-/*!**************************************!*\
-  !*** ./node_modules/lodash/merge.js ***!
-  \**************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var baseMerge = __webpack_require__(/*! ./_baseMerge */ "./node_modules/lodash/_baseMerge.js"),
-    createAssigner = __webpack_require__(/*! ./_createAssigner */ "./node_modules/lodash/_createAssigner.js");
+/**
+ * The base implementation of `_.toString` which doesn't convert nullish
+ * values to empty strings.
+ *
+ * @private
+ * @param {*} value The value to process.
+ * @returns {string} Returns the string.
+ */
+function baseToString(value) {
+  // Exit early for strings to avoid a performance hit in some environments.
+  if (typeof value == 'string') {
+    return value;
+  }
+  if (isSymbol(value)) {
+    return symbolToString ? symbolToString.call(value) : '';
+  }
+  var result = (value + '');
+  return (result == '0' && (1 / value) == -INFINITY) ? '-0' : result;
+}
 
 /**
- * This method is like `_.assign` except that it recursively merges own and
- * inherited enumerable string keyed properties of source objects into the
- * destination object. Source properties that resolve to `undefined` are
- * skipped if a destination value exists. Array and plain object properties
- * are merged recursively. Other objects and value types are overridden by
- * assignment. Source objects are applied from left to right. Subsequent
- * sources overwrite property assignments of previous sources.
+ * Copies the values of `source` to `array`.
  *
- * **Note:** This method mutates `object`.
- *
- * @static
- * @memberOf _
- * @since 0.5.0
- * @category Object
- * @param {Object} object The destination object.
- * @param {...Object} [sources] The source objects.
- * @returns {Object} Returns `object`.
- * @example
- *
- * var object = {
- *   'a': [{ 'b': 2 }, { 'd': 4 }]
- * };
- *
- * var other = {
- *   'a': [{ 'c': 3 }, { 'e': 5 }]
- * };
- *
- * _.merge(object, other);
- * // => { 'a': [{ 'b': 2, 'c': 3 }, { 'd': 4, 'e': 5 }] }
+ * @private
+ * @param {Array} source The array to copy values from.
+ * @param {Array} [array=[]] The array to copy values to.
+ * @returns {Array} Returns `array`.
  */
-var merge = createAssigner(function(object, source, srcIndex) {
-  baseMerge(object, source, srcIndex);
+function copyArray(source, array) {
+  var index = -1,
+      length = source.length;
+
+  array || (array = Array(length));
+  while (++index < length) {
+    array[index] = source[index];
+  }
+  return array;
+}
+
+/**
+ * Gets the data for `map`.
+ *
+ * @private
+ * @param {Object} map The map to query.
+ * @param {string} key The reference key.
+ * @returns {*} Returns the map data.
+ */
+function getMapData(map, key) {
+  var data = map.__data__;
+  return isKeyable(key)
+    ? data[typeof key == 'string' ? 'string' : 'hash']
+    : data.map;
+}
+
+/**
+ * Gets the native function at `key` of `object`.
+ *
+ * @private
+ * @param {Object} object The object to query.
+ * @param {string} key The key of the method to get.
+ * @returns {*} Returns the function if it's native, else `undefined`.
+ */
+function getNative(object, key) {
+  var value = getValue(object, key);
+  return baseIsNative(value) ? value : undefined;
+}
+
+/**
+ * Checks if `value` is suitable for use as unique object key.
+ *
+ * @private
+ * @param {*} value The value to check.
+ * @returns {boolean} Returns `true` if `value` is suitable, else `false`.
+ */
+function isKeyable(value) {
+  var type = typeof value;
+  return (type == 'string' || type == 'number' || type == 'symbol' || type == 'boolean')
+    ? (value !== '__proto__')
+    : (value === null);
+}
+
+/**
+ * Checks if `func` has its source masked.
+ *
+ * @private
+ * @param {Function} func The function to check.
+ * @returns {boolean} Returns `true` if `func` is masked, else `false`.
+ */
+function isMasked(func) {
+  return !!maskSrcKey && (maskSrcKey in func);
+}
+
+/**
+ * Converts `string` to a property path array.
+ *
+ * @private
+ * @param {string} string The string to convert.
+ * @returns {Array} Returns the property path array.
+ */
+var stringToPath = memoize(function(string) {
+  string = toString(string);
+
+  var result = [];
+  if (reLeadingDot.test(string)) {
+    result.push('');
+  }
+  string.replace(rePropName, function(match, number, quote, string) {
+    result.push(quote ? string.replace(reEscapeChar, '$1') : (number || match));
+  });
+  return result;
 });
 
-module.exports = merge;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/noop.js":
-/*!*************************************!*\
-  !*** ./node_modules/lodash/noop.js ***!
-  \*************************************/
-/*! no static exports found */
-/***/ (function(module, exports) {
-
 /**
- * This method returns `undefined`.
+ * Converts `value` to a string key if it's not a string or symbol.
  *
- * @static
- * @memberOf _
- * @since 2.3.0
- * @category Util
- * @example
- *
- * _.times(2, _.noop);
- * // => [undefined, undefined]
+ * @private
+ * @param {*} value The value to inspect.
+ * @returns {string|symbol} Returns the key.
  */
-function noop() {
-  // No operation performed.
+function toKey(value) {
+  if (typeof value == 'string' || isSymbol(value)) {
+    return value;
+  }
+  var result = (value + '');
+  return (result == '0' && (1 / value) == -INFINITY) ? '-0' : result;
 }
 
-module.exports = noop;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/stubFalse.js":
-/*!******************************************!*\
-  !*** ./node_modules/lodash/stubFalse.js ***!
-  \******************************************/
-/*! no static exports found */
-/***/ (function(module, exports) {
-
 /**
- * This method returns `false`.
+ * Converts `func` to its source code.
  *
- * @static
- * @memberOf _
- * @since 4.13.0
- * @category Util
- * @returns {boolean} Returns `false`.
- * @example
- *
- * _.times(2, _.stubFalse);
- * // => [false, false]
+ * @private
+ * @param {Function} func The function to process.
+ * @returns {string} Returns the source code.
  */
-function stubFalse() {
-  return false;
+function toSource(func) {
+  if (func != null) {
+    try {
+      return funcToString.call(func);
+    } catch (e) {}
+    try {
+      return (func + '');
+    } catch (e) {}
+  }
+  return '';
 }
 
-module.exports = stubFalse;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/toPlainObject.js":
-/*!**********************************************!*\
-  !*** ./node_modules/lodash/toPlainObject.js ***!
-  \**********************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var copyObject = __webpack_require__(/*! ./_copyObject */ "./node_modules/lodash/_copyObject.js"),
-    keysIn = __webpack_require__(/*! ./keysIn */ "./node_modules/lodash/keysIn.js");
-
 /**
- * Converts `value` to a plain object flattening inherited enumerable string
- * keyed properties of `value` to own properties of the plain object.
+ * Creates a function that memoizes the result of `func`. If `resolver` is
+ * provided, it determines the cache key for storing the result based on the
+ * arguments provided to the memoized function. By default, the first argument
+ * provided to the memoized function is used as the map cache key. The `func`
+ * is invoked with the `this` binding of the memoized function.
  *
- * @static
- * @memberOf _
- * @since 3.0.0
- * @category Lang
- * @param {*} value The value to convert.
- * @returns {Object} Returns the converted plain object.
- * @example
- *
- * function Foo() {
- *   this.b = 2;
- * }
- *
- * Foo.prototype.c = 3;
- *
- * _.assign({ 'a': 1 }, new Foo);
- * // => { 'a': 1, 'b': 2 }
- *
- * _.assign({ 'a': 1 }, _.toPlainObject(new Foo));
- * // => { 'a': 1, 'b': 2, 'c': 3 }
- */
-function toPlainObject(value) {
-  return copyObject(value, keysIn(value));
-}
-
-module.exports = toPlainObject;
-
-
-/***/ }),
-
-/***/ "./node_modules/lodash/union.js":
-/*!**************************************!*\
-  !*** ./node_modules/lodash/union.js ***!
-  \**************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-var baseFlatten = __webpack_require__(/*! ./_baseFlatten */ "./node_modules/lodash/_baseFlatten.js"),
-    baseRest = __webpack_require__(/*! ./_baseRest */ "./node_modules/lodash/_baseRest.js"),
-    baseUniq = __webpack_require__(/*! ./_baseUniq */ "./node_modules/lodash/_baseUniq.js"),
-    isArrayLikeObject = __webpack_require__(/*! ./isArrayLikeObject */ "./node_modules/lodash/isArrayLikeObject.js");
-
-/**
- * Creates an array of unique values, in order, from all given arrays using
- * [`SameValueZero`](http://ecma-international.org/ecma-262/7.0/#sec-samevaluezero)
- * for equality comparisons.
+ * **Note:** The cache is exposed as the `cache` property on the memoized
+ * function. Its creation may be customized by replacing the `_.memoize.Cache`
+ * constructor with one whose instances implement the
+ * [`Map`](http://ecma-international.org/ecma-262/7.0/#sec-properties-of-the-map-prototype-object)
+ * method interface of `delete`, `get`, `has`, and `set`.
  *
  * @static
  * @memberOf _
  * @since 0.1.0
- * @category Array
- * @param {...Array} [arrays] The arrays to inspect.
- * @returns {Array} Returns the new array of combined values.
+ * @category Function
+ * @param {Function} func The function to have its output memoized.
+ * @param {Function} [resolver] The function to resolve the cache key.
+ * @returns {Function} Returns the new memoized function.
  * @example
  *
- * _.union([2], [1, 2]);
- * // => [2, 1]
+ * var object = { 'a': 1, 'b': 2 };
+ * var other = { 'c': 3, 'd': 4 };
+ *
+ * var values = _.memoize(_.values);
+ * values(object);
+ * // => [1, 2]
+ *
+ * values(other);
+ * // => [3, 4]
+ *
+ * object.a = 2;
+ * values(object);
+ * // => [1, 2]
+ *
+ * // Modify the result cache.
+ * values.cache.set(object, ['a', 'b']);
+ * values(object);
+ * // => ['a', 'b']
+ *
+ * // Replace `_.memoize.Cache`.
+ * _.memoize.Cache = WeakMap;
  */
-var union = baseRest(function(arrays) {
-  return baseUniq(baseFlatten(arrays, 1, isArrayLikeObject, true));
-});
+function memoize(func, resolver) {
+  if (typeof func != 'function' || (resolver && typeof resolver != 'function')) {
+    throw new TypeError(FUNC_ERROR_TEXT);
+  }
+  var memoized = function() {
+    var args = arguments,
+        key = resolver ? resolver.apply(this, args) : args[0],
+        cache = memoized.cache;
 
-module.exports = union;
+    if (cache.has(key)) {
+      return cache.get(key);
+    }
+    var result = func.apply(this, args);
+    memoized.cache = cache.set(key, result);
+    return result;
+  };
+  memoized.cache = new (memoize.Cache || MapCache);
+  return memoized;
+}
 
+// Assign cache to `_.memoize`.
+memoize.Cache = MapCache;
+
+/**
+ * Performs a
+ * [`SameValueZero`](http://ecma-international.org/ecma-262/7.0/#sec-samevaluezero)
+ * comparison between two values to determine if they are equivalent.
+ *
+ * @static
+ * @memberOf _
+ * @since 4.0.0
+ * @category Lang
+ * @param {*} value The value to compare.
+ * @param {*} other The other value to compare.
+ * @returns {boolean} Returns `true` if the values are equivalent, else `false`.
+ * @example
+ *
+ * var object = { 'a': 1 };
+ * var other = { 'a': 1 };
+ *
+ * _.eq(object, object);
+ * // => true
+ *
+ * _.eq(object, other);
+ * // => false
+ *
+ * _.eq('a', 'a');
+ * // => true
+ *
+ * _.eq('a', Object('a'));
+ * // => false
+ *
+ * _.eq(NaN, NaN);
+ * // => true
+ */
+function eq(value, other) {
+  return value === other || (value !== value && other !== other);
+}
+
+/**
+ * Checks if `value` is classified as an `Array` object.
+ *
+ * @static
+ * @memberOf _
+ * @since 0.1.0
+ * @category Lang
+ * @param {*} value The value to check.
+ * @returns {boolean} Returns `true` if `value` is an array, else `false`.
+ * @example
+ *
+ * _.isArray([1, 2, 3]);
+ * // => true
+ *
+ * _.isArray(document.body.children);
+ * // => false
+ *
+ * _.isArray('abc');
+ * // => false
+ *
+ * _.isArray(_.noop);
+ * // => false
+ */
+var isArray = Array.isArray;
+
+/**
+ * Checks if `value` is classified as a `Function` object.
+ *
+ * @static
+ * @memberOf _
+ * @since 0.1.0
+ * @category Lang
+ * @param {*} value The value to check.
+ * @returns {boolean} Returns `true` if `value` is a function, else `false`.
+ * @example
+ *
+ * _.isFunction(_);
+ * // => true
+ *
+ * _.isFunction(/abc/);
+ * // => false
+ */
+function isFunction(value) {
+  // The use of `Object#toString` avoids issues with the `typeof` operator
+  // in Safari 8-9 which returns 'object' for typed array and other constructors.
+  var tag = isObject(value) ? objectToString.call(value) : '';
+  return tag == funcTag || tag == genTag;
+}
+
+/**
+ * Checks if `value` is the
+ * [language type](http://www.ecma-international.org/ecma-262/7.0/#sec-ecmascript-language-types)
+ * of `Object`. (e.g. arrays, functions, objects, regexes, `new Number(0)`, and `new String('')`)
+ *
+ * @static
+ * @memberOf _
+ * @since 0.1.0
+ * @category Lang
+ * @param {*} value The value to check.
+ * @returns {boolean} Returns `true` if `value` is an object, else `false`.
+ * @example
+ *
+ * _.isObject({});
+ * // => true
+ *
+ * _.isObject([1, 2, 3]);
+ * // => true
+ *
+ * _.isObject(_.noop);
+ * // => true
+ *
+ * _.isObject(null);
+ * // => false
+ */
+function isObject(value) {
+  var type = typeof value;
+  return !!value && (type == 'object' || type == 'function');
+}
+
+/**
+ * Checks if `value` is object-like. A value is object-like if it's not `null`
+ * and has a `typeof` result of "object".
+ *
+ * @static
+ * @memberOf _
+ * @since 4.0.0
+ * @category Lang
+ * @param {*} value The value to check.
+ * @returns {boolean} Returns `true` if `value` is object-like, else `false`.
+ * @example
+ *
+ * _.isObjectLike({});
+ * // => true
+ *
+ * _.isObjectLike([1, 2, 3]);
+ * // => true
+ *
+ * _.isObjectLike(_.noop);
+ * // => false
+ *
+ * _.isObjectLike(null);
+ * // => false
+ */
+function isObjectLike(value) {
+  return !!value && typeof value == 'object';
+}
+
+/**
+ * Checks if `value` is classified as a `Symbol` primitive or object.
+ *
+ * @static
+ * @memberOf _
+ * @since 4.0.0
+ * @category Lang
+ * @param {*} value The value to check.
+ * @returns {boolean} Returns `true` if `value` is a symbol, else `false`.
+ * @example
+ *
+ * _.isSymbol(Symbol.iterator);
+ * // => true
+ *
+ * _.isSymbol('abc');
+ * // => false
+ */
+function isSymbol(value) {
+  return typeof value == 'symbol' ||
+    (isObjectLike(value) && objectToString.call(value) == symbolTag);
+}
+
+/**
+ * Converts `value` to a string. An empty string is returned for `null`
+ * and `undefined` values. The sign of `-0` is preserved.
+ *
+ * @static
+ * @memberOf _
+ * @since 4.0.0
+ * @category Lang
+ * @param {*} value The value to process.
+ * @returns {string} Returns the string.
+ * @example
+ *
+ * _.toString(null);
+ * // => ''
+ *
+ * _.toString(-0);
+ * // => '-0'
+ *
+ * _.toString([1, 2, 3]);
+ * // => '1,2,3'
+ */
+function toString(value) {
+  return value == null ? '' : baseToString(value);
+}
+
+/**
+ * Converts `value` to a property path array.
+ *
+ * @static
+ * @memberOf _
+ * @since 4.0.0
+ * @category Util
+ * @param {*} value The value to convert.
+ * @returns {Array} Returns the new property path array.
+ * @example
+ *
+ * _.toPath('a.b.c');
+ * // => ['a', 'b', 'c']
+ *
+ * _.toPath('a[0].b.c');
+ * // => ['a', '0', 'b', 'c']
+ */
+function toPath(value) {
+  if (isArray(value)) {
+    return arrayMap(value, toKey);
+  }
+  return isSymbol(value) ? [value] : copyArray(stringToPath(value));
+}
+
+module.exports = toPath;
+
+/* WEBPACK VAR INJECTION */}.call(this, __webpack_require__(/*! ./../webpack/buildin/global.js */ "./node_modules/webpack/buildin/global.js")))
 
 /***/ }),
 
@@ -36789,6 +34955,7399 @@ module.exports = ReactPropTypesSecret;
 
 /***/ }),
 
+/***/ "./node_modules/react-redux-form/lib/action-types.js":
+/*!***********************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/action-types.js ***!
+  \***********************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+var actionTypes = {
+  BLUR: 'rrf/blur',
+  CHANGE: 'rrf/change',
+  FOCUS: 'rrf/focus',
+  RESET: 'rrf/reset',
+  VALIDATE: 'rrf/validate',
+  SET_DIRTY: 'rrf/setDirty',
+  SET_ERRORS: 'rrf/setErrors',
+  SET_INITIAL: 'rrf/setInitial',
+  SET_PENDING: 'rrf/setPending',
+  SET_PRISTINE: 'rrf/setPristine',
+  SET_SUBMITTED: 'rrf/setSubmitted',
+  SET_SUBMIT_FAILED: 'rrf/setSubmitFailed',
+  SET_TOUCHED: 'rrf/setTouched',
+  SET_UNTOUCHED: 'rrf/setUntouched',
+  SET_VALIDITY: 'rrf/setValidity',
+  SET_VALIDATING: 'rrf/setValidating',
+  SET_FIELDS_VALIDITY: 'rrf/setFieldsValidity',
+  SET_VIEW_VALUE: 'rrf/setViewValue',
+  RESET_VALIDITY: 'rrf/resetValidity',
+  BATCH: 'rrf/batch',
+  NULL: null,
+  ADD_INTENT: 'rrf/addIntent',
+  CLEAR_INTENTS: 'rrf/clearIntents'
+};
+
+exports.default = actionTypes;
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/actions/batch-actions.js":
+/*!********************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/actions/batch-actions.js ***!
+  \********************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.dispatchBatchIfNeeded = undefined;
+
+var _slicedToArray = function () { function sliceIterator(arr, i) { var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"]) _i["return"](); } finally { if (_d) throw _e; } } return _arr; } return function (arr, i) { if (Array.isArray(arr)) { return arr; } else if (Symbol.iterator in Object(arr)) { return sliceIterator(arr, i); } else { throw new TypeError("Invalid attempt to destructure non-iterable instance"); } }; }();
+
+var _actionTypes = __webpack_require__(/*! ../action-types */ "./node_modules/react-redux-form/lib/action-types.js");
+
+var _actionTypes2 = _interopRequireDefault(_actionTypes);
+
+var _partition3 = __webpack_require__(/*! ../utils/partition */ "./node_modules/react-redux-form/lib/utils/partition.js");
+
+var _partition4 = _interopRequireDefault(_partition3);
+
+var _isPlainObject = __webpack_require__(/*! ../utils/is-plain-object */ "./node_modules/react-redux-form/lib/utils/is-plain-object.js");
+
+var _isPlainObject2 = _interopRequireDefault(_isPlainObject);
+
+var _track = __webpack_require__(/*! ../utils/track */ "./node_modules/react-redux-form/lib/utils/track.js");
+
+var _nullAction = __webpack_require__(/*! ../constants/null-action */ "./node_modules/react-redux-form/lib/constants/null-action.js");
+
+var _nullAction2 = _interopRequireDefault(_nullAction);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+var batch = (0, _track.trackable)(function (model, actions) {
+  var dispatchableActions = actions.filter(function (action) {
+    return !!action;
+  });
+
+  if (!dispatchableActions.length) return _nullAction2.default;
+
+  if (dispatchableActions.length && dispatchableActions.every(_isPlainObject2.default)) {
+    if (dispatchableActions.length === 1) {
+      return dispatchableActions[0];
+    }
+
+    return {
+      type: _actionTypes2.default.BATCH,
+      model: model,
+      actions: dispatchableActions
+    };
+  }
+
+  var _partition = (0, _partition4.default)(dispatchableActions, function (action) {
+    return typeof action !== 'function';
+  }),
+      _partition2 = _slicedToArray(_partition, 2),
+      plainActions = _partition2[0],
+      actionThunks = _partition2[1];
+
+  if (!actionThunks.length) {
+    if (plainActions.length > 1) {
+      return {
+        type: _actionTypes2.default.BATCH,
+        model: model,
+        actions: plainActions
+      };
+    } else if (plainActions.length === 1) {
+      return plainActions[0];
+    }
+  }
+
+  return function (dispatch) {
+    if (plainActions.length > 1) {
+      dispatch({
+        type: _actionTypes2.default.BATCH,
+        model: model,
+        actions: plainActions
+      });
+    } else if (plainActions.length === 1) {
+      dispatch(plainActions[0]);
+    }
+    actionThunks.forEach(dispatch);
+  };
+});
+
+function dispatchBatchIfNeeded(model, actions, dispatch) {
+  if (!actions.length) return void 0;
+
+  var dispatchableActions = actions.filter(function (action) {
+    return !!action;
+  });
+
+  if (!dispatchableActions.length) return void 0;
+
+  return dispatch(batch(model, dispatchableActions));
+}
+
+exports.default = batch;
+exports.dispatchBatchIfNeeded = dispatchBatchIfNeeded;
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/actions/field-actions.js":
+/*!********************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/actions/field-actions.js ***!
+  \********************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.createFieldActions = undefined;
+
+var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
+
+var _get2 = __webpack_require__(/*! ../utils/get */ "./node_modules/react-redux-form/lib/utils/get.js");
+
+var _get3 = _interopRequireDefault(_get2);
+
+var _mapValues = __webpack_require__(/*! ../utils/map-values */ "./node_modules/react-redux-form/lib/utils/map-values.js");
+
+var _mapValues2 = _interopRequireDefault(_mapValues);
+
+var _actionTypes = __webpack_require__(/*! ../action-types */ "./node_modules/react-redux-form/lib/action-types.js");
+
+var _actionTypes2 = _interopRequireDefault(_actionTypes);
+
+var _batchActions = __webpack_require__(/*! ./batch-actions */ "./node_modules/react-redux-form/lib/actions/batch-actions.js");
+
+var _batchActions2 = _interopRequireDefault(_batchActions);
+
+var _getValidity = __webpack_require__(/*! ../utils/get-validity */ "./node_modules/react-redux-form/lib/utils/get-validity.js");
+
+var _getValidity2 = _interopRequireDefault(_getValidity);
+
+var _isValidityValid = __webpack_require__(/*! ../utils/is-validity-valid */ "./node_modules/react-redux-form/lib/utils/is-validity-valid.js");
+
+var _isValidityValid2 = _interopRequireDefault(_isValidityValid);
+
+var _isValidityInvalid = __webpack_require__(/*! ../utils/is-validity-invalid */ "./node_modules/react-redux-form/lib/utils/is-validity-invalid.js");
+
+var _isValidityInvalid2 = _interopRequireDefault(_isValidityInvalid);
+
+var _invertValidity = __webpack_require__(/*! ../utils/invert-validity */ "./node_modules/react-redux-form/lib/utils/invert-validity.js");
+
+var _invertValidity2 = _interopRequireDefault(_invertValidity);
+
+var _track = __webpack_require__(/*! ../utils/track */ "./node_modules/react-redux-form/lib/utils/track.js");
+
+var _getForm = __webpack_require__(/*! ../utils/get-form */ "./node_modules/react-redux-form/lib/utils/get-form.js");
+
+var _getForm2 = _interopRequireDefault(_getForm);
+
+var _getFieldFromState = __webpack_require__(/*! ../utils/get-field-from-state */ "./node_modules/react-redux-form/lib/utils/get-field-from-state.js");
+
+var _getFieldFromState2 = _interopRequireDefault(_getFieldFromState);
+
+var _nullAction = __webpack_require__(/*! ../constants/null-action */ "./node_modules/react-redux-form/lib/constants/null-action.js");
+
+var _nullAction2 = _interopRequireDefault(_nullAction);
+
+var _invariant = __webpack_require__(/*! invariant */ "./node_modules/react-redux-form/node_modules/invariant/browser.js");
+
+var _invariant2 = _interopRequireDefault(_invariant);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+var defaultStrategies = {
+  get: _get3.default,
+  getForm: _getForm2.default,
+  getFieldFromState: _getFieldFromState2.default
+};
+
+function createFieldActions() {
+  var s = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : defaultStrategies;
+
+  var addIntent = function addIntent(model, intent) {
+    return {
+      type: _actionTypes2.default.ADD_INTENT,
+      model: model,
+      intent: intent
+    };
+  };
+
+  var clearIntents = function clearIntents(model, intents) {
+    var options = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+    return {
+      type: _actionTypes2.default.CLEAR_INTENTS,
+      model: model,
+      intents: intents,
+      options: options
+    };
+  };
+
+  var focus = function focus(model, value) {
+    var options = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+    return _extends({
+      type: _actionTypes2.default.FOCUS,
+      model: model,
+      value: value
+    }, options);
+  };
+
+  var silentFocus = function silentFocus(model, value) {
+    return focus(model, value, {
+      silent: true
+    });
+  };
+
+  var blur = function blur(model) {
+    return {
+      type: _actionTypes2.default.BLUR,
+      model: model
+    };
+  };
+
+  var setPristine = function setPristine(model) {
+    return {
+      type: _actionTypes2.default.SET_PRISTINE,
+      model: model
+    };
+  };
+
+  var setDirty = function setDirty(model) {
+    return {
+      type: _actionTypes2.default.SET_DIRTY,
+      model: model
+    };
+  };
+
+  var setInitial = function setInitial(model) {
+    return {
+      type: _actionTypes2.default.SET_INITIAL,
+      model: model
+    };
+  };
+
+  var setPending = function setPending(model) {
+    var pending = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : true;
+    var options = arguments[2];
+    return _extends({
+      type: _actionTypes2.default.SET_PENDING,
+      model: model,
+      pending: pending
+    }, options);
+  };
+
+  var setValidating = function setValidating(model) {
+    var validating = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : true;
+    return {
+      type: _actionTypes2.default.SET_VALIDATING,
+      model: model,
+      validating: validating
+    };
+  };
+
+  var setValidity = function setValidity(model, validity) {
+    var options = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+    return _extends({
+      type: options.errors ? _actionTypes2.default.SET_ERRORS : _actionTypes2.default.SET_VALIDITY,
+      model: model
+    }, options, _defineProperty({}, options.errors ? 'errors' : 'validity', validity));
+  };
+
+  var resetValidity = function resetValidity(model) {
+    var omitKeys = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : false;
+    return {
+      type: _actionTypes2.default.RESET_VALIDITY,
+      model: model,
+      omitKeys: omitKeys
+    };
+  };
+
+  var setFieldsValidity = function setFieldsValidity(model, fieldsValidity) {
+    var options = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+    return {
+      type: _actionTypes2.default.SET_FIELDS_VALIDITY,
+      model: model,
+      fieldsValidity: fieldsValidity,
+      options: options
+    };
+  };
+
+  var setErrors = function setErrors(model, errors) {
+    var options = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+    return setValidity(model, errors, _extends({}, options, {
+      errors: true
+    }));
+  };
+
+  var setFieldsErrors = function setFieldsErrors(model, fieldsErrors, options) {
+    return setFieldsValidity(model, fieldsErrors, _extends({}, options, {
+      errors: true
+    }));
+  };
+
+  var resetErrors = resetValidity;
+
+  var setTouched = function setTouched(model) {
+    return {
+      type: _actionTypes2.default.SET_TOUCHED,
+      model: model
+    };
+  };
+
+  var setUntouched = function setUntouched(model) {
+    return {
+      type: _actionTypes2.default.SET_UNTOUCHED,
+      model: model
+    };
+  };
+
+  var asyncSetValidity = function asyncSetValidity(model, validator) {
+    var options = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+    return function (dispatch, getState) {
+      var value = s.get(getState(), model);
+
+      dispatch(setValidating(model, true));
+
+      var done = function done(validity) {
+        dispatch(setValidity(model, validity, _extends({
+          async: true
+        }, options)));
+      };
+
+      var immediateResult = validator(value, done);
+
+      if (typeof immediateResult !== 'undefined') {
+        done(immediateResult);
+      }
+    };
+  };
+
+  var asyncSetErrors = function asyncSetErrors(model, validator) {
+    var options = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+    return asyncSetValidity(model, validator, _extends({
+      errors: true
+    }, options));
+  };
+
+  var setSubmitted = function setSubmitted(model) {
+    var submitted = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : true;
+    return {
+      type: _actionTypes2.default.SET_SUBMITTED,
+      model: model,
+      submitted: submitted
+    };
+  };
+
+  var setSubmitFailed = function setSubmitFailed(model) {
+    var submitFailed = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : true;
+    var options = arguments[2];
+    return _extends({
+      type: _actionTypes2.default.SET_SUBMIT_FAILED,
+      model: model,
+      submitFailed: submitFailed
+    }, options);
+  };
+
+  var submit = function submit(model, promise) {
+    var options = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+
+    if (typeof promise === 'undefined') {
+      return addIntent(model, { type: 'submit' });
+    }
+
+    return function (dispatch, getState) {
+      if (options.validate) {
+        var form = s.getForm(getState(), model);
+
+        (0, _invariant2.default)(form, 'Unable to submit form with validation. ' + 'Could not find form for "%s" in the store.', model);
+
+        if (!form.$form.valid) {
+          return dispatch(_nullAction2.default);
+        }
+
+        dispatch(setPending(model, true));
+      } else if (options.validators || options.errors) {
+        var validators = options.validators || options.errors;
+        var isErrors = options.errors;
+        var value = s.get(getState(), model);
+        var validity = (0, _getValidity2.default)(validators, value);
+        var valid = options.errors ? !(0, _isValidityInvalid2.default)(validity) : (0, _isValidityValid2.default)(validity);
+
+        if (!valid) {
+          return dispatch(isErrors ? setErrors(model, validity) : setValidity(model, validity));
+        }
+
+        dispatch((0, _batchActions2.default)(model, [setValidity(model, isErrors ? (0, _invertValidity2.default)(validity) : validity), setPending(model, true)]));
+      } else {
+        dispatch(setPending(model, true));
+      }
+
+      var errorsAction = options.fields ? setFieldsErrors : setErrors;
+
+      promise.then(function (response) {
+        dispatch((0, _batchActions2.default)(model, [setSubmitted(model, true), setValidity(model, response)]));
+      }).catch(function (rejection) {
+        var error = rejection instanceof Error ? rejection.message : rejection;
+
+        dispatch((0, _batchActions2.default)(model, [setSubmitFailed(model), errorsAction(model, error, { async: true })]));
+      });
+
+      return promise;
+    };
+  };
+
+  var submitFields = function submitFields(model, promise) {
+    var options = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+    return submit(model, promise, _extends({}, options, {
+      fields: true
+    }));
+  };
+
+  var validSubmit = function validSubmit(model, promise) {
+    var options = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+    return submit(model, promise, _extends({}, options, {
+      validate: true
+    }));
+  };
+
+  var validate = function validate(model, validators) {
+    return function (dispatch, getState) {
+      var value = s.get(getState(), model);
+      var validity = (0, _getValidity2.default)(validators, value);
+
+      dispatch(setValidity(model, validity));
+    };
+  };
+
+  var validateErrors = function validateErrors(model, errorValidators) {
+    return function (dispatch, getState) {
+      var value = s.get(getState(), model);
+      var errors = (0, _getValidity2.default)(errorValidators, value);
+
+      dispatch(setValidity(model, errors, { errors: true }));
+    };
+  };
+
+  var validateFields = function validateFields(model, fieldValidators) {
+    var options = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+    return function (dispatch, getState) {
+      var modelValue = s.get(getState(), model);
+
+      var fieldsValidity = (0, _mapValues2.default)(fieldValidators, function (validator, field) {
+        var fieldValue = field ? s.get(modelValue, field) : modelValue;
+
+        var fieldValidity = (0, _getValidity2.default)(validator, fieldValue);
+
+        return fieldValidity;
+      });
+
+      var fieldsValiditySetter = options.errors ? setFieldsErrors : setFieldsValidity;
+
+      dispatch(fieldsValiditySetter(model, fieldsValidity));
+    };
+  };
+
+  var validateFieldsErrors = function validateFieldsErrors(model, fieldErrorsValidators) {
+    var options = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+    return validateFields(model, fieldErrorsValidators, _extends({}, options, {
+      errors: true
+    }));
+  };
+
+  return (0, _mapValues2.default)({
+    blur: blur,
+    focus: focus,
+    silentFocus: silentFocus,
+    submit: submit,
+    submitFields: submitFields,
+    validSubmit: validSubmit,
+    setDirty: setDirty,
+    setErrors: setErrors,
+    setInitial: setInitial,
+    setPending: setPending,
+    setValidating: setValidating,
+    setPristine: setPristine,
+    setSubmitted: setSubmitted,
+    setSubmitFailed: setSubmitFailed,
+    setTouched: setTouched,
+    setUntouched: setUntouched,
+    setValidity: setValidity,
+    setFieldsValidity: setFieldsValidity,
+    setFieldsErrors: setFieldsErrors,
+    resetValidity: resetValidity,
+    resetErrors: resetErrors,
+    validate: validate,
+    validateErrors: validateErrors,
+    validateFields: validateFields,
+    validateFieldsErrors: validateFieldsErrors,
+    asyncSetValidity: asyncSetValidity,
+    asyncSetErrors: asyncSetErrors,
+    addIntent: addIntent,
+    clearIntents: clearIntents
+  }, _track.trackable);
+}
+
+exports.createFieldActions = createFieldActions;
+exports.default = createFieldActions();
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/actions/index.js":
+/*!************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/actions/index.js ***!
+  \************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
+
+var _fieldActions = __webpack_require__(/*! ./field-actions */ "./node_modules/react-redux-form/lib/actions/field-actions.js");
+
+var _fieldActions2 = _interopRequireDefault(_fieldActions);
+
+var _modelActions = __webpack_require__(/*! ./model-actions */ "./node_modules/react-redux-form/lib/actions/model-actions.js");
+
+var _modelActions2 = _interopRequireDefault(_modelActions);
+
+var _batchActions = __webpack_require__(/*! ./batch-actions */ "./node_modules/react-redux-form/lib/actions/batch-actions.js");
+
+var _batchActions2 = _interopRequireDefault(_batchActions);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+var actions = _extends({}, _fieldActions2.default, _modelActions2.default, {
+  batch: _batchActions2.default
+});
+
+exports.default = actions;
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/actions/model-actions.js":
+/*!********************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/actions/model-actions.js ***!
+  \********************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
+
+exports.createModelActions = createModelActions;
+
+var _get2 = __webpack_require__(/*! ../utils/get */ "./node_modules/react-redux-form/lib/utils/get.js");
+
+var _get3 = _interopRequireDefault(_get2);
+
+var _identity = __webpack_require__(/*! ../utils/identity */ "./node_modules/react-redux-form/lib/utils/identity.js");
+
+var _identity2 = _interopRequireDefault(_identity);
+
+var _icepick = __webpack_require__(/*! icepick */ "./node_modules/icepick/icepick.js");
+
+var _icepick2 = _interopRequireDefault(_icepick);
+
+var _getValue = __webpack_require__(/*! ../utils/get-value */ "./node_modules/react-redux-form/lib/utils/get-value.js");
+
+var _getValue2 = _interopRequireDefault(_getValue);
+
+var _isMulti = __webpack_require__(/*! ../utils/is-multi */ "./node_modules/react-redux-form/lib/utils/is-multi.js");
+
+var _isMulti2 = _interopRequireDefault(_isMulti);
+
+var _actionTypes = __webpack_require__(/*! ../action-types */ "./node_modules/react-redux-form/lib/action-types.js");
+
+var _actionTypes2 = _interopRequireDefault(_actionTypes);
+
+var _mapValues = __webpack_require__(/*! ../utils/map-values */ "./node_modules/react-redux-form/lib/utils/map-values.js");
+
+var _mapValues2 = _interopRequireDefault(_mapValues);
+
+var _track = __webpack_require__(/*! ../utils/track */ "./node_modules/react-redux-form/lib/utils/track.js");
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+var defaultStrategies = {
+  get: _get3.default,
+  getValue: _getValue2.default,
+  splice: _icepick2.default.splice,
+  merge: _icepick2.default.merge,
+  remove: _icepick2.default.dissoc,
+  push: _icepick2.default.push,
+  length: function length(value) {
+    return value.length;
+  },
+  object: {},
+  array: []
+};
+
+function optionsFromArgs(args, index) {
+  var options = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+
+  if (typeof index === 'undefined') return undefined;
+
+  return _extends({}, options, args[index]);
+}
+
+function createModelActions() {
+  var s = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : defaultStrategies;
+
+  var change = function change(model, value) {
+    var options = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+
+    // option defaults
+    var changeOptions = _extends({
+      silent: false,
+      multi: (0, _isMulti2.default)(model),
+      external: true
+    }, options);
+
+    if (typeof value === 'function') {
+      return function (dispatch, getState) {
+        var modelValue = s.get(getState(), model);
+
+        return dispatch(change(model, value(modelValue), options));
+      };
+    }
+
+    return _extends({
+      type: _actionTypes2.default.CHANGE,
+      model: model,
+      value: s.getValue(value)
+    }, changeOptions);
+  };
+
+  function createModifierAction(modifier, defaultValue, optionsIndex, getOptions) {
+    var actionCreator = function actionCreator(model) {
+      for (var _len = arguments.length, args = Array(_len > 1 ? _len - 1 : 0), _key = 1; _key < _len; _key++) {
+        args[_key - 1] = arguments[_key];
+      }
+
+      return function (dispatch, getState) {
+        var modelValue = s.get(getState(), model, defaultValue);
+        var value = modifier.apply(undefined, [modelValue].concat(args));
+
+        var options = getOptions ? getOptions.apply(undefined, [value].concat(args)) : undefined;
+
+        dispatch(change(model, value, optionsFromArgs(args, optionsIndex - 1, options)));
+      };
+    };
+
+    return actionCreator;
+  }
+
+  var xor = createModifierAction(function (value, item) {
+    var iteratee = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : function (_item) {
+      return _item === item;
+    };
+
+    var valueWithoutItem = value.filter(function (_item) {
+      return !iteratee(_item);
+    });
+
+    return s.length(value) === s.length(valueWithoutItem) ? s.push(value, item) : valueWithoutItem;
+  }, s.array, 3);
+
+  var push = createModifierAction(function (value, item) {
+    return s.push(value || s.array, item);
+  }, s.array, 2);
+
+  var toggle = createModifierAction(function (value) {
+    return !value;
+  }, undefined, 1);
+
+  var checkWithValue = function checkWithValue(model, value) {
+    var options = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+    var currentValue = options.currentValue;
+
+
+    if ((0, _isMulti2.default)(model)) {
+      var valueWithItem = currentValue || s.array;
+      var valueWithoutItem = (valueWithItem || s.array).filter(function (item) {
+        return item !== value;
+      });
+      var multiValue = s.length(valueWithoutItem) === s.length(valueWithItem) ? s.push(valueWithItem, value) : valueWithoutItem;
+
+      return change(model, multiValue);
+    }
+
+    if (typeof value === 'undefined') {
+      return change(model, !currentValue);
+    }
+    return change(model, value);
+  };
+
+  var check = function check(model, value) {
+    return function (dispatch, getState) {
+      var modelValue = s.get(getState(), model);
+
+      var action = checkWithValue(model, value, {
+        currentValue: modelValue
+      });
+
+      dispatch(action);
+    };
+  };
+
+  var filter = createModifierAction(function (value, iteratee) {
+    return value.filter(iteratee);
+  }, s.array, 2);
+
+  var reset = function reset(model) {
+    return {
+      type: _actionTypes2.default.RESET,
+      model: model
+    };
+  };
+
+  var map = createModifierAction(function (value) {
+    var iteratee = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : _identity2.default;
+    return value.map(iteratee);
+  }, s.array, 2);
+
+  var remove = createModifierAction(function (value, index) {
+    return s.splice(value, index, 1);
+  }, s.array, 2, function (_, index) {
+    return { removeKeys: [index] };
+  });
+
+  var move = createModifierAction(function (value, indexFrom, indexTo) {
+    if (indexFrom >= s.length(value) || indexTo >= s.length(value)) {
+      throw new Error('Error moving array item: invalid bounds ' + indexFrom + ', ' + indexTo);
+    }
+
+    var item = s.get(value, indexFrom);
+    var removed = s.splice(value, indexFrom, 1);
+    var inserted = s.splice(removed, indexTo, 0, item);
+
+    return inserted;
+  }, s.array, 3);
+
+  var merge = createModifierAction(s.merge, {}, 3);
+
+  var omit = createModifierAction(function (value) {
+    var props = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : [];
+
+    var propsArray = typeof props === 'string' ? [props] : props;
+
+    var newValue = propsArray.reduce(function (acc, prop) {
+      return s.remove(acc, prop);
+    }, value);
+
+    return newValue;
+  }, {}, 2, function (_, props) {
+    return { removeKeys: props };
+  });
+
+  var load = function load(model, values, options) {
+    return change(model, values, _extends({
+      silent: true,
+      load: true
+    }, options));
+  };
+
+  return (0, _mapValues2.default)({
+    change: change,
+    xor: xor,
+    push: push,
+    toggle: toggle,
+    check: check,
+    checkWithValue: checkWithValue,
+    filter: filter,
+    reset: reset,
+    map: map,
+    remove: remove,
+    move: move,
+    merge: merge,
+    omit: omit,
+    load: load
+  }, _track.trackable);
+}
+
+exports.default = createModelActions();
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/components/control-component-factory.js":
+/*!***********************************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/components/control-component-factory.js ***!
+  \***********************************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.createControlClass = undefined;
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
+
+var _react = __webpack_require__(/*! react */ "./node_modules/react/index.js");
+
+var _react2 = _interopRequireDefault(_react);
+
+var _propTypes = __webpack_require__(/*! prop-types */ "./node_modules/prop-types/index.js");
+
+var _propTypes2 = _interopRequireDefault(_propTypes);
+
+var _reactRedux = __webpack_require__(/*! react-redux */ "./node_modules/react-redux/es/index.js");
+
+var _redux = __webpack_require__(/*! redux */ "./node_modules/redux/es/index.js");
+
+var _identity = __webpack_require__(/*! ../utils/identity */ "./node_modules/react-redux-form/lib/utils/identity.js");
+
+var _identity2 = _interopRequireDefault(_identity);
+
+var _shallowEqual = __webpack_require__(/*! ../utils/shallow-equal */ "./node_modules/react-redux-form/lib/utils/shallow-equal.js");
+
+var _shallowEqual2 = _interopRequireDefault(_shallowEqual);
+
+var _get2 = __webpack_require__(/*! ../utils/get */ "./node_modules/react-redux-form/lib/utils/get.js");
+
+var _get3 = _interopRequireDefault(_get2);
+
+var _merge = __webpack_require__(/*! ../utils/merge */ "./node_modules/react-redux-form/lib/utils/merge.js");
+
+var _merge2 = _interopRequireDefault(_merge);
+
+var _mapValues = __webpack_require__(/*! ../utils/map-values */ "./node_modules/react-redux-form/lib/utils/map-values.js");
+
+var _mapValues2 = _interopRequireDefault(_mapValues);
+
+var _isPlainObject = __webpack_require__(/*! ../utils/is-plain-object */ "./node_modules/react-redux-form/lib/utils/is-plain-object.js");
+
+var _isPlainObject2 = _interopRequireDefault(_isPlainObject);
+
+var _icepick = __webpack_require__(/*! icepick */ "./node_modules/icepick/icepick.js");
+
+var _icepick2 = _interopRequireDefault(_icepick);
+
+var _omit = __webpack_require__(/*! ../utils/omit */ "./node_modules/react-redux-form/lib/utils/omit.js");
+
+var _omit2 = _interopRequireDefault(_omit);
+
+var _actionTypes = __webpack_require__(/*! ../action-types */ "./node_modules/react-redux-form/lib/action-types.js");
+
+var _actionTypes2 = _interopRequireDefault(_actionTypes);
+
+var _debounce = __webpack_require__(/*! ../utils/debounce */ "./node_modules/react-redux-form/lib/utils/debounce.js");
+
+var _debounce2 = _interopRequireDefault(_debounce);
+
+var _getValue2 = __webpack_require__(/*! ../utils/get-value */ "./node_modules/react-redux-form/lib/utils/get-value.js");
+
+var _getValue3 = _interopRequireDefault(_getValue2);
+
+var _getValidity = __webpack_require__(/*! ../utils/get-validity */ "./node_modules/react-redux-form/lib/utils/get-validity.js");
+
+var _getValidity2 = _interopRequireDefault(_getValidity);
+
+var _invertValidity = __webpack_require__(/*! ../utils/invert-validity */ "./node_modules/react-redux-form/lib/utils/invert-validity.js");
+
+var _invertValidity2 = _interopRequireDefault(_invertValidity);
+
+var _getModel = __webpack_require__(/*! ../utils/get-model */ "./node_modules/react-redux-form/lib/utils/get-model.js");
+
+var _getModel2 = _interopRequireDefault(_getModel);
+
+var _persistEventWithCallback = __webpack_require__(/*! ../utils/persist-event-with-callback */ "./node_modules/react-redux-form/lib/utils/persist-event-with-callback.js");
+
+var _persistEventWithCallback2 = _interopRequireDefault(_persistEventWithCallback);
+
+var _actions = __webpack_require__(/*! ../actions */ "./node_modules/react-redux-form/lib/actions/index.js");
+
+var _actions2 = _interopRequireDefault(_actions);
+
+var _controlPropsMap = __webpack_require__(/*! ../constants/control-props-map */ "./node_modules/react-redux-form/lib/constants/control-props-map.js");
+
+var _controlPropsMap2 = _interopRequireDefault(_controlPropsMap);
+
+var _validityKeys = __webpack_require__(/*! ../constants/validity-keys */ "./node_modules/react-redux-form/lib/constants/validity-keys.js");
+
+var _validityKeys2 = _interopRequireDefault(_validityKeys);
+
+var _batchActions = __webpack_require__(/*! ../actions/batch-actions */ "./node_modules/react-redux-form/lib/actions/batch-actions.js");
+
+var _resolveModel = __webpack_require__(/*! ../utils/resolve-model */ "./node_modules/react-redux-form/lib/utils/resolve-model.js");
+
+var _resolveModel2 = _interopRequireDefault(_resolveModel);
+
+var _isNative = __webpack_require__(/*! ../utils/is-native */ "./node_modules/react-redux-form/lib/utils/is-native.js");
+
+var _isNative2 = _interopRequireDefault(_isNative);
+
+var _initialFieldState = __webpack_require__(/*! ../constants/initial-field-state */ "./node_modules/react-redux-form/lib/constants/initial-field-state.js");
+
+var _initialFieldState2 = _interopRequireDefault(_initialFieldState);
+
+var _containsEvent = __webpack_require__(/*! ../utils/contains-event */ "./node_modules/react-redux-form/lib/utils/contains-event.js");
+
+var _containsEvent2 = _interopRequireDefault(_containsEvent);
+
+var _controlStripDefaultsComponent = __webpack_require__(/*! ./control-strip-defaults-component */ "./node_modules/react-redux-form/lib/components/control-strip-defaults-component.js");
+
+var _controlStripDefaultsComponent2 = _interopRequireDefault(_controlStripDefaultsComponent);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+var disallowedProps = ['changeAction', 'getFieldFromState', 'store'];
+
+function mergeOrSetErrors(model, errors, options) {
+  return _actions2.default.setErrors(model, errors, _extends({
+    merge: (0, _isPlainObject.isObjectLike)(errors)
+  }, options));
+}
+
+var propTypes = {
+  model: _propTypes2.default.oneOfType([_propTypes2.default.func, _propTypes2.default.string]).isRequired,
+  modelValue: _propTypes2.default.any,
+  viewValue: _propTypes2.default.any,
+  defaultValue: _propTypes2.default.any,
+  control: _propTypes2.default.any,
+  onLoad: _propTypes2.default.func,
+  onSubmit: _propTypes2.default.func,
+  fieldValue: _propTypes2.default.object,
+  mapProps: _propTypes2.default.oneOfType([_propTypes2.default.func, _propTypes2.default.object]),
+  changeAction: _propTypes2.default.func,
+  updateOn: _propTypes2.default.oneOfType([_propTypes2.default.arrayOf(_propTypes2.default.string), _propTypes2.default.string]),
+  validateOn: _propTypes2.default.oneOfType([_propTypes2.default.arrayOf(_propTypes2.default.string), _propTypes2.default.string]),
+  validators: _propTypes2.default.oneOfType([_propTypes2.default.func, _propTypes2.default.object]),
+  asyncValidateOn: _propTypes2.default.oneOfType([_propTypes2.default.arrayOf(_propTypes2.default.string), _propTypes2.default.string]),
+  asyncValidators: _propTypes2.default.oneOfType([_propTypes2.default.func, _propTypes2.default.object]),
+  errors: _propTypes2.default.oneOfType([_propTypes2.default.func, _propTypes2.default.object]),
+  controlProps: _propTypes2.default.object,
+  component: _propTypes2.default.any,
+  dispatch: _propTypes2.default.func,
+  parser: _propTypes2.default.func,
+  formatter: _propTypes2.default.func,
+  ignore: _propTypes2.default.oneOfType([_propTypes2.default.arrayOf(_propTypes2.default.string), _propTypes2.default.string]),
+  dynamic: _propTypes2.default.bool,
+  store: _propTypes2.default.shape({
+    subscribe: _propTypes2.default.func,
+    dispatch: _propTypes2.default.func,
+    getState: _propTypes2.default.func
+  }),
+  getRef: _propTypes2.default.func,
+  withField: _propTypes2.default.bool,
+  debounce: _propTypes2.default.number,
+  persist: _propTypes2.default.bool,
+  getValue: _propTypes2.default.func,
+  isToggle: _propTypes2.default.bool,
+  updateOnEnter: _propTypes2.default.bool,
+  render: _propTypes2.default.func,
+
+  // HTML5 attributes
+  formNoValidate: _propTypes2.default.bool
+};
+
+var htmlAttributes = ['formNoValidate'];
+var disallowedPropTypeKeys = Object.keys(propTypes).filter(function (key) {
+  return htmlAttributes.indexOf(key) === -1;
+});
+
+function createControlClass(s) {
+  var emptyControlProps = {};
+  var emptyMapProps = {};
+
+  var Control = function (_Component) {
+    _inherits(Control, _Component);
+
+    function Control(props) {
+      _classCallCheck(this, Control);
+
+      var _this = _possibleConstructorReturn(this, (Control.__proto__ || Object.getPrototypeOf(Control)).call(this, props));
+
+      _this.getChangeAction = _this.getChangeAction.bind(_this);
+      _this.getValidateAction = _this.getValidateAction.bind(_this);
+
+      _this.handleKeyPress = _this.handleKeyPress.bind(_this);
+      _this.createEventHandler = _this.createEventHandler.bind(_this);
+      _this.handleFocus = _this.createEventHandler('focus').bind(_this);
+      _this.handleBlur = _this.createEventHandler('blur').bind(_this);
+      _this.handleUpdate = _this.createEventHandler('change').bind(_this);
+      _this.forceHandleUpdate = _this.createEventHandler('change', true).bind(_this);
+      _this.handleChange = _this.handleChange.bind(_this);
+      _this.handleLoad = _this.handleLoad.bind(_this);
+      _this.getMappedProps = _this.getMappedProps.bind(_this);
+      _this.getRenderProps = _this.getRenderProps.bind(_this);
+      _this.attachNode = _this.attachNode.bind(_this);
+
+      if (props.debounce) {
+        _this.handleUpdate = (0, _debounce2.default)(_this.handleUpdate, props.debounce);
+        var oldHandleBlur = _this.handleBlur;
+        _this.handleBlur = function () {
+          for (var _len = arguments.length, args = Array(_len), _key = 0; _key < _len; _key++) {
+            args[_key] = arguments[_key];
+          }
+
+          _this.handleUpdate.flush();
+          oldHandleBlur.call(_this, args);
+        };
+      }
+
+      _this.willValidate = false;
+
+      _this.state = {
+        viewValue: _this.format(props.modelValue)
+      };
+      return _this;
+    }
+
+    _createClass(Control, [{
+      key: 'componentDidMount',
+      value: function componentDidMount() {
+        this.attachNode();
+        this.handleLoad();
+      }
+    }, {
+      key: 'componentWillReceiveProps',
+      value: function componentWillReceiveProps(_ref) {
+        var modelValue = _ref.modelValue;
+
+        if (modelValue !== this.props.modelValue) {
+          this.setViewValue(modelValue);
+        }
+      }
+    }, {
+      key: 'shouldComponentUpdate',
+      value: function shouldComponentUpdate(nextProps, nextState) {
+        return !(0, _shallowEqual2.default)(this.props, nextProps, {
+          deepKeys: ['controlProps'],
+          omitKeys: ['mapProps']
+        }) || !(0, _shallowEqual2.default)(this.state.viewValue, nextState.viewValue);
+      }
+    }, {
+      key: 'componentDidUpdate',
+      value: function componentDidUpdate() {
+        this.handleIntents();
+      }
+    }, {
+      key: 'componentWillUnmount',
+      value: function componentWillUnmount() {
+        var _props = this.props,
+            model = _props.model,
+            fieldValue = _props.fieldValue,
+            dispatch = _props.dispatch,
+            _props$validators = _props.validators,
+            validators = _props$validators === undefined ? {} : _props$validators,
+            _props$errors = _props.errors,
+            errors = _props$errors === undefined ? {} : _props$errors,
+            persist = _props.persist;
+
+
+        if (!persist && fieldValue && !fieldValue.valid) {
+          var keys = Object.keys(validators).concat(Object.keys(errors), this.willValidate ? _validityKeys2.default : []);
+
+          dispatch(_actions2.default.resetValidity(model, keys));
+        }
+
+        // flush debounced model changes
+        if (this.handleUpdate.flush) {
+          this.handleUpdate.flush();
+        }
+      }
+    }, {
+      key: 'getRenderProps',
+      value: function getRenderProps() {
+        var props = this.props;
+        var viewValue = this.state.viewValue;
+
+        return {
+          modelValue: props.modelValue,
+          fieldValue: props.fieldValue,
+          onFocus: this.handleFocus,
+          onBlur: this.handleBlur,
+          onChange: this.handleChange,
+          onKeyPress: this.handleKeyPress,
+          viewValue: viewValue
+        };
+      }
+    }, {
+      key: 'getMappedProps',
+      value: function getMappedProps() {
+        var props = this.props;
+        var mapProps = props.mapProps;
+        var viewValue = this.state.viewValue;
+
+        var originalProps = _extends({}, props, props.controlProps, {
+          onFocus: this.handleFocus,
+          onBlur: this.handleBlur,
+          onChange: this.handleChange,
+          onKeyPress: this.handleKeyPress,
+          viewValue: viewValue
+        });
+
+        if ((0, _isPlainObject2.default)(mapProps)) {
+          return (0, _mapValues2.default)(mapProps, function (value, key) {
+            if (typeof value === 'function' && key !== 'component') {
+              return value(originalProps);
+            }
+
+            return value;
+          });
+        } else if (typeof mapProps === 'function') {
+          return mapProps(originalProps);
+        }
+
+        return emptyMapProps;
+      }
+    }, {
+      key: 'getChangeAction',
+      value: function getChangeAction(event) {
+        return this.props.changeAction(this.props.model, this.getValue(event), {
+          currentValue: this.props.modelValue,
+          external: false
+        });
+      }
+    }, {
+      key: 'getValidateAction',
+      value: function getValidateAction(value, eventName) {
+        var forceUpdate = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : false;
+        var _props2 = this.props,
+            validators = _props2.validators,
+            errors = _props2.errors,
+            model = _props2.model,
+            modelValue = _props2.modelValue,
+            updateOn = _props2.updateOn,
+            fieldValue = _props2.fieldValue;
+
+
+        if (!validators && !errors && !this.willValidate) return false;
+
+        var nodeErrors = this.getNodeErrors();
+
+        // If it is not a change event, use the model value.
+        var valueToValidate = forceUpdate || (0, _containsEvent2.default)(updateOn, eventName) ? value : modelValue;
+
+        if (validators || errors) {
+          var fieldValidity = (0, _getValidity2.default)(validators, valueToValidate);
+          var fieldErrors = (0, _merge2.default)((0, _getValidity2.default)(errors, valueToValidate), nodeErrors);
+
+          var mergedErrors = validators ? (0, _merge2.default)((0, _invertValidity2.default)(fieldValidity), fieldErrors) : fieldErrors;
+
+          if (!fieldValue || !(0, _shallowEqual2.default)(mergedErrors, fieldValue.errors)) {
+            return mergeOrSetErrors(model, mergedErrors);
+          }
+        } else if (nodeErrors && Object.keys(nodeErrors).length) {
+          return mergeOrSetErrors(model, nodeErrors);
+        }
+
+        return false;
+      }
+    }, {
+      key: 'getAsyncValidateAction',
+      value: function getAsyncValidateAction(value, eventName) {
+        var _this2 = this;
+
+        var _props3 = this.props,
+            asyncValidators = _props3.asyncValidators,
+            fieldValue = _props3.fieldValue,
+            model = _props3.model,
+            modelValue = _props3.modelValue,
+            updateOn = _props3.updateOn,
+            _props3$validateOn = _props3.validateOn,
+            validateOn = _props3$validateOn === undefined ? updateOn : _props3$validateOn,
+            asyncValidateOn = _props3.asyncValidateOn,
+            dispatch = _props3.dispatch,
+            getValue = _props3.getValue;
+
+        // If there are no async validators,
+        // do not run async validation
+
+        if (!asyncValidators) return false;
+
+        // If it is not a change event, use the model value.
+        var valueToValidate = (0, _containsEvent2.default)(updateOn, eventName) ? value : modelValue;
+
+        // If any sync validity is invalid,
+        // do not run async validation
+        // unless sync and async validation occur simultaneously
+        if (validateOn !== asyncValidateOn) {
+          var asyncValidatorKeys = Object.keys(asyncValidators);
+          var syncValid = Object.keys(fieldValue.validity).every(function (key) {
+            // If validity is based on async validator, skip
+            if (!!~asyncValidatorKeys.indexOf(key)) return true;
+
+            return fieldValue.validity[key];
+          });
+
+          if (!syncValid) return false;
+        }
+
+        dispatch(_actions2.default.setValidating(model, true));
+
+        (0, _mapValues2.default)(asyncValidators, function (validator, key) {
+          var outerDone = function outerDone(valid) {
+            var validity = _icepick2.default.merge(fieldValue.validity, _defineProperty({}, key, valid));
+
+            dispatch(_actions2.default.setValidity(model, validity));
+          };
+
+          validator(getValue(valueToValidate, _this2.props), outerDone);
+        });
+
+        return valueToValidate;
+      }
+    }, {
+      key: 'getNodeErrors',
+      value: function getNodeErrors() {
+        var node = this.node,
+            _props4 = this.props,
+            fieldValue = _props4.fieldValue,
+            formNoValidate = _props4.formNoValidate;
+
+
+        if (formNoValidate || !node || node && !node.willValidate) {
+          this.willValidate = false;
+          return null;
+        }
+
+        this.willValidate = true;
+
+        var nodeErrors = {};
+
+        _validityKeys2.default.forEach(function (key) {
+          var errorValidity = node.validity[key];
+
+          // If the key is invalid or they key was
+          // previously invalid and is now valid,
+          // set its validity
+          if (errorValidity || fieldValue && fieldValue.errors[key]) {
+            nodeErrors[key] = errorValidity;
+          }
+        });
+
+        return nodeErrors;
+      }
+    }, {
+      key: 'setViewValue',
+      value: function setViewValue(viewValue) {
+        if (!this.props.isToggle) {
+          if (this.props.formatter) {
+            var parsedValue = this.parse(viewValue);
+            this.setState({ viewValue: this.format(parsedValue) });
+          } else {
+            this.setState({ viewValue: this.parse(viewValue) });
+          }
+        }
+      }
+    }, {
+      key: 'getValue',
+      value: function getValue(event) {
+        return this.props.getValue(event, this.props);
+      }
+    }, {
+      key: 'handleIntents',
+      value: function handleIntents() {
+        var _this3 = this;
+
+        var _props5 = this.props,
+            model = _props5.model,
+            modelValue = _props5.modelValue,
+            fieldValue = _props5.fieldValue,
+            intents = _props5.fieldValue.intents,
+            controlProps = _props5.controlProps,
+            dispatch = _props5.dispatch,
+            updateOn = _props5.updateOn,
+            _props5$validateOn = _props5.validateOn,
+            validateOn = _props5$validateOn === undefined ? updateOn : _props5$validateOn;
+
+
+        if (!Array.isArray(intents) || !intents.length) return;
+
+        intents.forEach(function (intent) {
+          switch (intent.type) {
+            case _actionTypes2.default.FOCUS:
+              {
+                if (_isNative2.default) return;
+
+                var focused = fieldValue.focus;
+
+                if (focused && _this3.node.focus && (!_this3.props.isToggle || typeof intent.value === 'undefined' || intent.value === controlProps.value)) {
+                  _this3.node.focus();
+
+                  dispatch(_actions2.default.clearIntents(model, intent));
+                }
+
+                return;
+              }
+            case 'validate':
+              if ((0, _containsEvent2.default)(validateOn, 'change')) {
+                _this3.validate({ clearIntents: intent });
+              }
+              return;
+            case 'reset':
+              _this3.setViewValue(modelValue);
+              if (_this3.handleUpdate.cancel) {
+                _this3.handleUpdate.cancel();
+              }
+              dispatch(_actions2.default.clearIntents(model, intent));
+              if ((0, _containsEvent2.default)(validateOn, 'change')) {
+                _this3.validate({});
+              }
+              return;
+
+            case 'load':
+              if (!(0, _shallowEqual2.default)(modelValue, fieldValue.value)) {
+                dispatch(_actions2.default.load(model, fieldValue.value, { clearIntents: intent }));
+              }
+              return;
+
+            default:
+              return;
+          }
+        });
+      }
+    }, {
+      key: 'parse',
+      value: function parse(value) {
+        return this.props.parser ? this.props.parser(value) : value;
+      }
+    }, {
+      key: 'format',
+      value: function format(value) {
+        return this.props.formatter ? this.props.formatter(value) : value;
+      }
+    }, {
+      key: 'handleChange',
+      value: function handleChange(event) {
+        if (event && event.persist) event.persist();
+
+        this.setViewValue(this.getValue(event));
+        this.handleUpdate(event);
+      }
+    }, {
+      key: 'handleKeyPress',
+      value: function handleKeyPress(event) {
+        var _props6 = this.props,
+            onKeyPress = _props6.controlProps.onKeyPress,
+            updateOnEnter = _props6.updateOnEnter;
+
+
+        if (onKeyPress) onKeyPress(event);
+
+        if (updateOnEnter && event.key === 'Enter') {
+          this.forceHandleUpdate(event);
+        }
+      }
+    }, {
+      key: 'handleLoad',
+      value: function handleLoad() {
+        var _props7 = this.props,
+            model = _props7.model,
+            modelValue = _props7.modelValue,
+            fieldValue = _props7.fieldValue,
+            controlProps = _props7.controlProps,
+            onLoad = _props7.onLoad,
+            dispatch = _props7.dispatch,
+            changeAction = _props7.changeAction,
+            parser = _props7.parser;
+
+        var defaultValue = undefined;
+
+        if (controlProps.hasOwnProperty('defaultValue')) {
+          defaultValue = controlProps.defaultValue;
+        } else if (controlProps.hasOwnProperty('defaultChecked')) {
+          defaultValue = controlProps.defaultChecked;
+        } else if (this.props.hasOwnProperty('defaultValue')) {
+          defaultValue = this.props.defaultValue;
+        }
+
+        var loadActions = [this.getValidateAction(defaultValue)];
+
+        if (typeof defaultValue !== 'undefined') {
+          loadActions.push(changeAction(model, defaultValue));
+        } else {
+          if (parser) {
+            var parsedValue = parser(modelValue);
+
+            if (parsedValue !== modelValue) {
+              loadActions.push(changeAction(model, parsedValue));
+            }
+          }
+        }
+
+        (0, _batchActions.dispatchBatchIfNeeded)(model, loadActions, dispatch);
+
+        if (onLoad) onLoad(modelValue, fieldValue, this.node);
+      }
+    }, {
+      key: 'createEventHandler',
+      value: function createEventHandler(eventName) {
+        var _this4 = this;
+
+        var forceUpdate = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : false;
+
+        var eventAction = {
+          focus: _actions2.default.silentFocus,
+          blur: _actions2.default.blur
+        }[eventName];
+
+        var dispatchBatchActions = function dispatchBatchActions(persistedEvent) {
+          var _props8 = _this4.props,
+              dispatch = _props8.dispatch,
+              model = _props8.model,
+              updateOn = _props8.updateOn,
+              _props8$validateOn = _props8.validateOn,
+              validateOn = _props8$validateOn === undefined ? updateOn : _props8$validateOn,
+              asyncValidateOn = _props8.asyncValidateOn;
+
+
+          var eventActions = [eventAction && eventAction(model), (forceUpdate || (0, _containsEvent2.default)(validateOn, eventName)) && _this4.getValidateAction(persistedEvent, eventName, forceUpdate), (forceUpdate || (0, _containsEvent2.default)(asyncValidateOn, eventName)) && _this4.getAsyncValidateAction(persistedEvent, eventName), (forceUpdate || (0, _containsEvent2.default)(updateOn, eventName)) && _this4.getChangeAction(persistedEvent)];
+
+          (0, _batchActions.dispatchBatchIfNeeded)(model, eventActions, dispatch);
+
+          return persistedEvent;
+        };
+
+        return function (event) {
+          var _props9 = _this4.props,
+              controlProps = _props9.controlProps,
+              parser = _props9.parser,
+              ignore = _props9.ignore,
+              withField = _props9.withField,
+              fieldValue = _props9.fieldValue;
+
+
+          var controlEventHandler = {
+            focus: controlProps.onFocus,
+            blur: controlProps.onBlur,
+            change: controlProps.onChange
+          }[eventName];
+
+          if ((0, _containsEvent2.default)(ignore, eventName)) {
+            return controlEventHandler ? controlEventHandler(event) : event;
+          }
+
+          if (_this4.props.isToggle) {
+            return (0, _redux.compose)(dispatchBatchActions, (0, _persistEventWithCallback2.default)(controlEventHandler || _identity2.default))(event);
+          }
+
+          return (0, _redux.compose)(dispatchBatchActions, parser, function (e) {
+            return _this4.getValue(e);
+          }, (0, _persistEventWithCallback2.default)(controlEventHandler || _identity2.default))(event, withField ? fieldValue : undefined);
+        };
+      }
+    }, {
+      key: 'attachNode',
+      value: function attachNode() {
+        var node = s.findDOMNode && s.findDOMNode(this);
+
+        if (node) {
+          this.node = node;
+          this.willValidate = node.willValidate;
+        }
+      }
+    }, {
+      key: 'validate',
+      value: function validate(options) {
+        var _props10 = this.props,
+            model = _props10.model,
+            modelValue = _props10.modelValue,
+            fieldValue = _props10.fieldValue,
+            validators = _props10.validators,
+            errorValidators = _props10.errors,
+            dispatch = _props10.dispatch;
+
+
+        if (!validators && !errorValidators && !this.willValidate || !fieldValue) {
+          return;
+        }
+
+        var fieldValidity = (0, _getValidity2.default)(validators, modelValue);
+        var fieldErrors = (0, _getValidity2.default)(errorValidators, modelValue);
+        var nodeErrors = this.getNodeErrors();
+
+        var errors = validators ? (0, _merge2.default)((0, _invertValidity2.default)(fieldValidity), fieldErrors) : fieldErrors;
+
+        if (this.willValidate) {
+          errors = (0, _merge2.default)(errors, nodeErrors);
+        }
+
+        if (!(0, _shallowEqual2.default)(errors, fieldValue.errors)) {
+          dispatch(mergeOrSetErrors(model, errors, options));
+        } else if (options.clearIntents) {
+          dispatch(_actions2.default.clearIntents(model, options.clearIntents));
+        }
+      }
+    }, {
+      key: 'render',
+      value: function render() {
+        var _props11 = this.props,
+            render = _props11.render,
+            controlProps = _props11.controlProps,
+            component = _props11.component,
+            control = _props11.control,
+            getRef = _props11.getRef,
+            fieldValue = _props11.fieldValue;
+
+
+        if (render) {
+          return render(this.getRenderProps());
+        }
+
+        var mappedProps = (0, _omit2.default)(this.getMappedProps(), disallowedProps);
+
+        if (getRef) {
+          mappedProps.getRef = getRef;
+        }
+
+        if (controlProps.withFieldValue) {
+          mappedProps.fieldValue = fieldValue;
+        }
+
+        // If there is an existing control, clone it
+        if (control) {
+          return (0, _react.cloneElement)(control, _extends({}, mappedProps, {
+            defaultValue: undefined,
+            defaultChecked: undefined
+          }), controlProps.children);
+        }
+        return (0, _react.createElement)(_controlStripDefaultsComponent2.default, _extends({
+          component: component
+        }, controlProps, mappedProps));
+      }
+    }]);
+
+    return Control;
+  }(_react.Component);
+
+  Control.displayName = 'Control';
+
+   true ? Control.propTypes = propTypes : undefined;
+
+  Control.defaultProps = {
+    changeAction: s.actions.change,
+    updateOn: 'change',
+    asyncValidateOn: 'blur',
+    parser: _identity2.default,
+    controlProps: emptyControlProps,
+    ignore: [],
+    dynamic: false,
+    component: 'input',
+    withField: true,
+    persist: false,
+    getValue: _getValue3.default,
+    isToggle: false,
+    updateOnEnter: true
+  };
+
+  function mapStateToProps(state, props) {
+    var model = props.model,
+        controlProps = props.controlProps;
+
+
+    var finalControlProps = _extends({}, controlProps, (0, _omit2.default)(props, disallowedPropTypeKeys));
+
+    var modelString = (0, _getModel2.default)(model, state);
+    var fieldValue = s.getFieldFromState(state, modelString) || _initialFieldState2.default;
+    var modelValue = s.get(state, modelString);
+
+    return {
+      model: modelString,
+      modelValue: modelValue,
+      fieldValue: fieldValue,
+      controlProps: finalControlProps
+    };
+  }
+
+  var ConnectedControl = (0, _resolveModel2.default)((0, _reactRedux.connect)(mapStateToProps, null, null, {
+    areOwnPropsEqual: function areOwnPropsEqual(nextOwnProps, ownProps) {
+      return (0, _shallowEqual2.default)(nextOwnProps, ownProps, {
+        omitKeys: ['mapProps']
+      });
+    },
+    areStatePropsEqual: function areStatePropsEqual(nextStateProps, stateProps) {
+      return (0, _shallowEqual2.default)(nextStateProps, stateProps, {
+        deepKeys: ['controlProps']
+      });
+    }
+  })(Control));
+
+  /* eslint-disable react/prop-types */
+  /* eslint-disable react/no-multi-comp */
+
+  var DefaultConnectedControl = function (_React$Component) {
+    _inherits(DefaultConnectedControl, _React$Component);
+
+    function DefaultConnectedControl() {
+      _classCallCheck(this, DefaultConnectedControl);
+
+      return _possibleConstructorReturn(this, (DefaultConnectedControl.__proto__ || Object.getPrototypeOf(DefaultConnectedControl)).apply(this, arguments));
+    }
+
+    _createClass(DefaultConnectedControl, [{
+      key: 'shouldComponentUpdate',
+      value: function shouldComponentUpdate(nextProps, nextState, nextContext) {
+        return !(0, _shallowEqual2.default)(this.context, nextContext) || !(0, _shallowEqual2.default)(this.props, nextProps, {
+          deepKeys: ['controlProps'],
+          omitKeys: ['mapProps']
+        });
+      }
+    }, {
+      key: 'render',
+      value: function render() {
+        return _react2.default.createElement(ConnectedControl, _extends({}, this.props, {
+          mapProps: _extends({}, _controlPropsMap2.default.default, this.props.mapProps)
+        }));
+      }
+    }]);
+
+    return DefaultConnectedControl;
+  }(_react2.default.Component);
+
+  // Copy the context types so that we can properly implement shouldComponentUpdate
+
+
+  DefaultConnectedControl.contextTypes = ConnectedControl.contextTypes;
+
+  DefaultConnectedControl.custom = ConnectedControl;
+
+  var DefaultConnectedControlInput = function (_DefaultConnectedCont) {
+    _inherits(DefaultConnectedControlInput, _DefaultConnectedCont);
+
+    function DefaultConnectedControlInput() {
+      _classCallCheck(this, DefaultConnectedControlInput);
+
+      return _possibleConstructorReturn(this, (DefaultConnectedControlInput.__proto__ || Object.getPrototypeOf(DefaultConnectedControlInput)).apply(this, arguments));
+    }
+
+    _createClass(DefaultConnectedControlInput, [{
+      key: 'render',
+      value: function render() {
+        return _react2.default.createElement(ConnectedControl, _extends({
+          component: 'input'
+        }, this.props, {
+          mapProps: _extends({}, _controlPropsMap2.default.default, this.props.mapProps)
+        }));
+      }
+    }]);
+
+    return DefaultConnectedControlInput;
+  }(DefaultConnectedControl);
+
+  DefaultConnectedControl.input = DefaultConnectedControlInput;
+
+  var DefaultConnectedControlText = function (_DefaultConnectedCont2) {
+    _inherits(DefaultConnectedControlText, _DefaultConnectedCont2);
+
+    function DefaultConnectedControlText() {
+      _classCallCheck(this, DefaultConnectedControlText);
+
+      return _possibleConstructorReturn(this, (DefaultConnectedControlText.__proto__ || Object.getPrototypeOf(DefaultConnectedControlText)).apply(this, arguments));
+    }
+
+    _createClass(DefaultConnectedControlText, [{
+      key: 'render',
+      value: function render() {
+        return _react2.default.createElement(ConnectedControl, _extends({
+          component: 'input'
+        }, this.props, {
+          mapProps: _extends({}, _controlPropsMap2.default.text, {
+            type: this.props.type || 'text'
+          }, this.props.mapProps)
+        }));
+      }
+    }]);
+
+    return DefaultConnectedControlText;
+  }(DefaultConnectedControl);
+
+  DefaultConnectedControl.text = DefaultConnectedControlText;
+
+  var DefaultConnectedControlPassword = function (_DefaultConnectedCont3) {
+    _inherits(DefaultConnectedControlPassword, _DefaultConnectedCont3);
+
+    function DefaultConnectedControlPassword() {
+      _classCallCheck(this, DefaultConnectedControlPassword);
+
+      return _possibleConstructorReturn(this, (DefaultConnectedControlPassword.__proto__ || Object.getPrototypeOf(DefaultConnectedControlPassword)).apply(this, arguments));
+    }
+
+    _createClass(DefaultConnectedControlPassword, [{
+      key: 'render',
+      value: function render() {
+        return _react2.default.createElement(ConnectedControl, _extends({
+          component: 'input'
+        }, this.props, {
+          mapProps: _extends({}, _controlPropsMap2.default.text, {
+            type: this.props.type || 'password'
+          }, this.props.mapProps)
+        }));
+      }
+    }]);
+
+    return DefaultConnectedControlPassword;
+  }(DefaultConnectedControl);
+
+  DefaultConnectedControl.password = DefaultConnectedControlPassword;
+
+  var DefaultConnectedControlTextArea = function (_DefaultConnectedCont4) {
+    _inherits(DefaultConnectedControlTextArea, _DefaultConnectedCont4);
+
+    function DefaultConnectedControlTextArea() {
+      _classCallCheck(this, DefaultConnectedControlTextArea);
+
+      return _possibleConstructorReturn(this, (DefaultConnectedControlTextArea.__proto__ || Object.getPrototypeOf(DefaultConnectedControlTextArea)).apply(this, arguments));
+    }
+
+    _createClass(DefaultConnectedControlTextArea, [{
+      key: 'render',
+      value: function render() {
+        return _react2.default.createElement(ConnectedControl, _extends({
+          component: 'textarea',
+          updateOnEnter: false
+        }, this.props, {
+          mapProps: _extends({}, _controlPropsMap2.default.textarea, this.props.mapProps)
+        }));
+      }
+    }]);
+
+    return DefaultConnectedControlTextArea;
+  }(DefaultConnectedControl);
+
+  DefaultConnectedControl.textarea = DefaultConnectedControlTextArea;
+
+  var DefaultConnectedControlRadio = function (_DefaultConnectedCont5) {
+    _inherits(DefaultConnectedControlRadio, _DefaultConnectedCont5);
+
+    function DefaultConnectedControlRadio() {
+      _classCallCheck(this, DefaultConnectedControlRadio);
+
+      return _possibleConstructorReturn(this, (DefaultConnectedControlRadio.__proto__ || Object.getPrototypeOf(DefaultConnectedControlRadio)).apply(this, arguments));
+    }
+
+    _createClass(DefaultConnectedControlRadio, [{
+      key: 'render',
+      value: function render() {
+        return _react2.default.createElement(ConnectedControl, _extends({
+          component: 'input',
+          type: 'radio',
+          isToggle: true
+        }, this.props, {
+          mapProps: _extends({}, _controlPropsMap2.default.radio, this.props.mapProps)
+        }));
+      }
+    }]);
+
+    return DefaultConnectedControlRadio;
+  }(DefaultConnectedControl);
+
+  DefaultConnectedControl.radio = DefaultConnectedControlRadio;
+
+  var DefaultConnectedControlCheckbox = function (_DefaultConnectedCont6) {
+    _inherits(DefaultConnectedControlCheckbox, _DefaultConnectedCont6);
+
+    function DefaultConnectedControlCheckbox() {
+      _classCallCheck(this, DefaultConnectedControlCheckbox);
+
+      return _possibleConstructorReturn(this, (DefaultConnectedControlCheckbox.__proto__ || Object.getPrototypeOf(DefaultConnectedControlCheckbox)).apply(this, arguments));
+    }
+
+    _createClass(DefaultConnectedControlCheckbox, [{
+      key: 'render',
+      value: function render() {
+        return _react2.default.createElement(ConnectedControl, _extends({
+          component: 'input',
+          type: 'checkbox',
+          isToggle: true
+        }, this.props, {
+          mapProps: _extends({}, _controlPropsMap2.default.checkbox, this.props.mapProps),
+          getValue: _getValue2.getCheckboxValue,
+          changeAction: this.props.changeAction || s.actions.checkWithValue
+        }));
+      }
+    }]);
+
+    return DefaultConnectedControlCheckbox;
+  }(DefaultConnectedControl);
+
+  DefaultConnectedControl.checkbox = DefaultConnectedControlCheckbox;
+
+  var DefaultConnectedControlFile = function (_DefaultConnectedCont7) {
+    _inherits(DefaultConnectedControlFile, _DefaultConnectedCont7);
+
+    function DefaultConnectedControlFile() {
+      _classCallCheck(this, DefaultConnectedControlFile);
+
+      return _possibleConstructorReturn(this, (DefaultConnectedControlFile.__proto__ || Object.getPrototypeOf(DefaultConnectedControlFile)).apply(this, arguments));
+    }
+
+    _createClass(DefaultConnectedControlFile, [{
+      key: 'render',
+      value: function render() {
+        return _react2.default.createElement(ConnectedControl, _extends({
+          component: 'input',
+          type: 'file'
+        }, this.props, {
+          mapProps: _extends({}, _controlPropsMap2.default.file, this.props.mapProps)
+        }));
+      }
+    }]);
+
+    return DefaultConnectedControlFile;
+  }(DefaultConnectedControl);
+
+  DefaultConnectedControl.file = DefaultConnectedControlFile;
+
+  var DefaultConnectedControlSelect = function (_DefaultConnectedCont8) {
+    _inherits(DefaultConnectedControlSelect, _DefaultConnectedCont8);
+
+    function DefaultConnectedControlSelect() {
+      _classCallCheck(this, DefaultConnectedControlSelect);
+
+      return _possibleConstructorReturn(this, (DefaultConnectedControlSelect.__proto__ || Object.getPrototypeOf(DefaultConnectedControlSelect)).apply(this, arguments));
+    }
+
+    _createClass(DefaultConnectedControlSelect, [{
+      key: 'render',
+      value: function render() {
+        return _react2.default.createElement(ConnectedControl, _extends({
+          component: 'select'
+        }, this.props, {
+          mapProps: _extends({}, _controlPropsMap2.default.select, this.props.mapProps)
+        }));
+      }
+    }]);
+
+    return DefaultConnectedControlSelect;
+  }(DefaultConnectedControl);
+
+  DefaultConnectedControl.select = DefaultConnectedControlSelect;
+
+  var DefaultConnectedControlButton = function (_DefaultConnectedCont9) {
+    _inherits(DefaultConnectedControlButton, _DefaultConnectedCont9);
+
+    function DefaultConnectedControlButton() {
+      _classCallCheck(this, DefaultConnectedControlButton);
+
+      return _possibleConstructorReturn(this, (DefaultConnectedControlButton.__proto__ || Object.getPrototypeOf(DefaultConnectedControlButton)).apply(this, arguments));
+    }
+
+    _createClass(DefaultConnectedControlButton, [{
+      key: 'render',
+      value: function render() {
+        return _react2.default.createElement(ConnectedControl, _extends({
+          component: 'button'
+        }, this.props, {
+          mapProps: _extends({}, _controlPropsMap2.default.button, this.props.mapProps)
+        }));
+      }
+    }]);
+
+    return DefaultConnectedControlButton;
+  }(DefaultConnectedControl);
+
+  DefaultConnectedControl.button = DefaultConnectedControlButton;
+
+  var DefaultConnectedControlReset = function (_DefaultConnectedCont10) {
+    _inherits(DefaultConnectedControlReset, _DefaultConnectedCont10);
+
+    function DefaultConnectedControlReset() {
+      _classCallCheck(this, DefaultConnectedControlReset);
+
+      return _possibleConstructorReturn(this, (DefaultConnectedControlReset.__proto__ || Object.getPrototypeOf(DefaultConnectedControlReset)).apply(this, arguments));
+    }
+
+    _createClass(DefaultConnectedControlReset, [{
+      key: 'render',
+      value: function render() {
+        return _react2.default.createElement(ConnectedControl, _extends({
+          component: 'button',
+          type: 'reset'
+        }, this.props, {
+          mapProps: _extends({}, _controlPropsMap2.default.reset, this.props.mapProps)
+        }));
+      }
+    }]);
+
+    return DefaultConnectedControlReset;
+  }(DefaultConnectedControl);
+
+  DefaultConnectedControl.reset = DefaultConnectedControlReset;
+
+  return DefaultConnectedControl;
+}
+
+exports.createControlClass = createControlClass;
+exports.default = createControlClass;
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/components/control-component.js":
+/*!***************************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/components/control-component.js ***!
+  \***************************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.createControlClass = undefined;
+
+var _actions = __webpack_require__(/*! ../actions */ "./node_modules/react-redux-form/lib/actions/index.js");
+
+var _actions2 = _interopRequireDefault(_actions);
+
+var _get2 = __webpack_require__(/*! ../utils/get */ "./node_modules/react-redux-form/lib/utils/get.js");
+
+var _get3 = _interopRequireDefault(_get2);
+
+var _getFieldFromState = __webpack_require__(/*! ../utils/get-field-from-state */ "./node_modules/react-redux-form/lib/utils/get-field-from-state.js");
+
+var _getFieldFromState2 = _interopRequireDefault(_getFieldFromState);
+
+var _controlComponentFactory = __webpack_require__(/*! ./control-component-factory */ "./node_modules/react-redux-form/lib/components/control-component-factory.js");
+
+var _controlComponentFactory2 = _interopRequireDefault(_controlComponentFactory);
+
+var _reactDom = __webpack_require__(/*! react-dom */ "./node_modules/react-dom/index.js");
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+var defaultStrategy = {
+  get: _get3.default,
+  getFieldFromState: _getFieldFromState2.default,
+  actions: _actions2.default,
+  findDOMNode: _reactDom.findDOMNode
+};
+
+exports.createControlClass = _controlComponentFactory2.default;
+exports.default = (0, _controlComponentFactory2.default)(defaultStrategy);
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/components/control-strip-defaults-component.js":
+/*!******************************************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/components/control-strip-defaults-component.js ***!
+  \******************************************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+var _react = __webpack_require__(/*! react */ "./node_modules/react/index.js");
+
+var _react2 = _interopRequireDefault(_react);
+
+var _propTypes = __webpack_require__(/*! prop-types */ "./node_modules/prop-types/index.js");
+
+var _propTypes2 = _interopRequireDefault(_propTypes);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function _objectWithoutProperties(obj, keys) { var target = {}; for (var i in obj) { if (keys.indexOf(i) >= 0) continue; if (!Object.prototype.hasOwnProperty.call(obj, i)) continue; target[i] = obj[i]; } return target; }
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+// Prevents the defaultValue/defaultChecked fields from rendering with value/checked
+var ComponentWrapper = function (_Component) {
+  _inherits(ComponentWrapper, _Component);
+
+  function ComponentWrapper() {
+    _classCallCheck(this, ComponentWrapper);
+
+    return _possibleConstructorReturn(this, (ComponentWrapper.__proto__ || Object.getPrototypeOf(ComponentWrapper)).apply(this, arguments));
+  }
+
+  _createClass(ComponentWrapper, [{
+    key: 'render',
+    value: function render() {
+      /* eslint-disable no-unused-vars */
+      var _props = this.props,
+          defaultValue = _props.defaultValue,
+          defaultChecked = _props.defaultChecked,
+          component = _props.component,
+          getRef = _props.getRef,
+          otherProps = _objectWithoutProperties(_props, ['defaultValue', 'defaultChecked', 'component', 'getRef']);
+      /* eslint-enable */
+
+      if (getRef) {
+        otherProps.ref = getRef;
+      }
+      var WrappedComponent = component;
+      return _react2.default.createElement(WrappedComponent, otherProps);
+    }
+  }]);
+
+  return ComponentWrapper;
+}(_react.Component);
+
+ true ? ComponentWrapper.propTypes = {
+  component: _propTypes2.default.any,
+  defaultValue: _propTypes2.default.any,
+  defaultChecked: _propTypes2.default.any,
+  getRef: _propTypes2.default.func
+} : undefined;
+exports.default = ComponentWrapper;
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/components/errors-component.js":
+/*!**************************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/components/errors-component.js ***!
+  \**************************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.createErrorsClass = undefined;
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
+
+var _react = __webpack_require__(/*! react */ "./node_modules/react/index.js");
+
+var _react2 = _interopRequireDefault(_react);
+
+var _propTypes = __webpack_require__(/*! prop-types */ "./node_modules/prop-types/index.js");
+
+var _propTypes2 = _interopRequireDefault(_propTypes);
+
+var _reactRedux = __webpack_require__(/*! react-redux */ "./node_modules/react-redux/es/index.js");
+
+var _get2 = __webpack_require__(/*! ../utils/get */ "./node_modules/react-redux-form/lib/utils/get.js");
+
+var _get3 = _interopRequireDefault(_get2);
+
+var _map = __webpack_require__(/*! ../utils/map */ "./node_modules/react-redux-form/lib/utils/map.js");
+
+var _map2 = _interopRequireDefault(_map);
+
+var _iteratee = __webpack_require__(/*! ../utils/iteratee */ "./node_modules/react-redux-form/lib/utils/iteratee.js");
+
+var _iteratee2 = _interopRequireDefault(_iteratee);
+
+var _isPlainObject = __webpack_require__(/*! ../utils/is-plain-object */ "./node_modules/react-redux-form/lib/utils/is-plain-object.js");
+
+var _isPlainObject2 = _interopRequireDefault(_isPlainObject);
+
+var _omit = __webpack_require__(/*! ../utils/omit */ "./node_modules/react-redux-form/lib/utils/omit.js");
+
+var _omit2 = _interopRequireDefault(_omit);
+
+var _getForm = __webpack_require__(/*! ../utils/get-form */ "./node_modules/react-redux-form/lib/utils/get-form.js");
+
+var _getForm2 = _interopRequireDefault(_getForm);
+
+var _getFieldFromState = __webpack_require__(/*! ../utils/get-field-from-state */ "./node_modules/react-redux-form/lib/utils/get-field-from-state.js");
+
+var _getFieldFromState2 = _interopRequireDefault(_getFieldFromState);
+
+var _getModel = __webpack_require__(/*! ../utils/get-model */ "./node_modules/react-redux-form/lib/utils/get-model.js");
+
+var _getModel2 = _interopRequireDefault(_getModel);
+
+var _isValid = __webpack_require__(/*! ../form/is-valid */ "./node_modules/react-redux-form/lib/form/is-valid.js");
+
+var _isValid2 = _interopRequireDefault(_isValid);
+
+var _resolveModel = __webpack_require__(/*! ../utils/resolve-model */ "./node_modules/react-redux-form/lib/utils/resolve-model.js");
+
+var _resolveModel2 = _interopRequireDefault(_resolveModel);
+
+var _initialFieldState = __webpack_require__(/*! ../constants/initial-field-state */ "./node_modules/react-redux-form/lib/constants/initial-field-state.js");
+
+var _initialFieldState2 = _interopRequireDefault(_initialFieldState);
+
+var _shallowEqual = __webpack_require__(/*! ../utils/shallow-equal */ "./node_modules/react-redux-form/lib/utils/shallow-equal.js");
+
+var _shallowEqual2 = _interopRequireDefault(_shallowEqual);
+
+var _invariant = __webpack_require__(/*! invariant */ "./node_modules/react-redux-form/node_modules/invariant/browser.js");
+
+var _invariant2 = _interopRequireDefault(_invariant);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+var defaultStrategy = {
+  get: _get3.default,
+  getForm: _getForm2.default,
+  getFieldFromState: _getFieldFromState2.default
+};
+
+var propTypes = {
+  // Computed props
+  modelValue: _propTypes2.default.any,
+  formValue: _propTypes2.default.object,
+  fieldValue: _propTypes2.default.object,
+
+  // Provided props
+  model: _propTypes2.default.string.isRequired,
+  messages: _propTypes2.default.objectOf(_propTypes2.default.oneOfType([_propTypes2.default.node, _propTypes2.default.func, _propTypes2.default.bool])),
+  show: _propTypes2.default.any,
+  wrapper: _propTypes2.default.oneOfType([_propTypes2.default.string, _propTypes2.default.func, _propTypes2.default.element]),
+  component: _propTypes2.default.oneOfType([_propTypes2.default.string, _propTypes2.default.func, _propTypes2.default.element]),
+  dispatch: _propTypes2.default.func,
+  dynamic: _propTypes2.default.oneOfType([_propTypes2.default.bool, _propTypes2.default.arrayOf(_propTypes2.default.string)]),
+  store: _propTypes2.default.shape({
+    subscribe: _propTypes2.default.func,
+    dispatch: _propTypes2.default.func,
+    getState: _propTypes2.default.func
+  }),
+  storeSubscription: _propTypes2.default.any
+};
+
+function showErrors(field, form) {
+  var show = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : true;
+
+  if (typeof show === 'function') {
+    return show(field, form);
+  }
+
+  if (!Array.isArray(show) && (typeof show === 'undefined' ? 'undefined' : _typeof(show)) !== 'object' && typeof show !== 'string') {
+    return !!show;
+  }
+
+  return (0, _iteratee2.default)(show)(field);
+}
+
+function createErrorsClass() {
+  var s = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : defaultStrategy;
+
+  var Errors = function (_Component) {
+    _inherits(Errors, _Component);
+
+    function Errors() {
+      _classCallCheck(this, Errors);
+
+      return _possibleConstructorReturn(this, (Errors.__proto__ || Object.getPrototypeOf(Errors)).apply(this, arguments));
+    }
+
+    _createClass(Errors, [{
+      key: 'shouldComponentUpdate',
+      value: function shouldComponentUpdate(nextProps) {
+        var fieldValue = nextProps.fieldValue,
+            formValue = nextProps.formValue;
+        var dynamic = this.props.dynamic;
+
+
+        if (dynamic) {
+          return !(0, _shallowEqual2.default)(this.props, nextProps);
+        }
+
+        return fieldValue !== this.props.fieldValue || formValue !== this.props.formValue;
+      }
+    }, {
+      key: 'mapErrorMessages',
+      value: function mapErrorMessages(errors) {
+        var _this2 = this;
+
+        var messages = this.props.messages;
+
+
+        if (typeof errors === 'string') {
+          return this.renderError(errors, 'error');
+        }
+
+        if (!errors) return null;
+
+        return (0, _map2.default)(errors, function (error, key) {
+          var message = messages[key];
+
+          if (error) {
+            if (message || typeof error === 'string') {
+              return _this2.renderError(message || error, key);
+            } else if ((0, _isPlainObject2.default)(error)) {
+              return _this2.mapErrorMessages(error);
+            }
+          }
+
+          return false;
+        }).reduce(function (a, b) {
+          return b ? a.concat(b) : a;
+        }, []);
+      }
+    }, {
+      key: 'renderError',
+      value: function renderError(message, key) {
+        var _props = this.props,
+            component = _props.component,
+            model = _props.model,
+            modelValue = _props.modelValue,
+            fieldValue = _props.fieldValue,
+            errors = _props.fieldValue.errors;
+
+
+        var errorProps = {
+          key: key,
+          model: model,
+          modelValue: modelValue,
+          fieldValue: fieldValue
+        };
+
+        var messageString = typeof message === 'function' ? message(modelValue, errors[key]) : message;
+
+        if (!messageString) return null;
+
+        var allowedProps = typeof component === 'function' ? errorProps : { key: key };
+
+        return _react2.default.createElement(component, allowedProps, messageString);
+      }
+    }, {
+      key: 'render',
+      value: function render() {
+        var _props2 = this.props,
+            fieldValue = _props2.fieldValue,
+            formValue = _props2.formValue,
+            show = _props2.show,
+            wrapper = _props2.wrapper;
+
+
+        var allowedProps = typeof wrapper === 'function' ? this.props : (0, _omit2.default)(this.props, Object.keys(propTypes));
+
+        if (!showErrors(fieldValue, formValue, show)) {
+          return null;
+        }
+
+        var errorMessages = (0, _isValid2.default)(fieldValue) ? null : this.mapErrorMessages(fieldValue.errors);
+
+        if (!errorMessages) return null;
+
+        return _react2.default.createElement(wrapper, allowedProps, errorMessages);
+      }
+    }]);
+
+    return Errors;
+  }(_react.Component);
+
+   true ? Errors.propTypes = propTypes : undefined;
+
+  Errors.defaultProps = {
+    wrapper: 'div',
+    component: 'span',
+    messages: {},
+    show: true,
+    dynamic: true
+  };
+
+  function mapStateToProps(state, _ref) {
+    var model = _ref.model;
+
+    var modelString = (0, _getModel2.default)(model, state);
+
+    var form = s.getForm(state, modelString);
+    (0, _invariant2.default)(form, 'Unable to retrieve errors. ' + 'Could not find form for "%s" in the store.', modelString);
+
+    var formValue = form.$form;
+    var fieldValue = s.getFieldFromState(state, modelString) || _initialFieldState2.default;
+
+    return {
+      model: modelString,
+      modelValue: s.get(state, modelString),
+      formValue: formValue,
+      fieldValue: fieldValue
+    };
+  }
+
+  return (0, _resolveModel2.default)((0, _reactRedux.connect)(mapStateToProps)(Errors));
+}
+
+exports.createErrorsClass = createErrorsClass;
+exports.default = createErrorsClass();
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/components/field-component.js":
+/*!*************************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/components/field-component.js ***!
+  \*************************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.createFieldClass = exports.controlPropsMap = undefined;
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
+
+var _react = __webpack_require__(/*! react */ "./node_modules/react/index.js");
+
+var _react2 = _interopRequireDefault(_react);
+
+var _propTypes = __webpack_require__(/*! prop-types */ "./node_modules/prop-types/index.js");
+
+var _propTypes2 = _interopRequireDefault(_propTypes);
+
+var _get2 = __webpack_require__(/*! ../utils/get */ "./node_modules/react-redux-form/lib/utils/get.js");
+
+var _get3 = _interopRequireDefault(_get2);
+
+var _identity = __webpack_require__(/*! ../utils/identity */ "./node_modules/react-redux-form/lib/utils/identity.js");
+
+var _identity2 = _interopRequireDefault(_identity);
+
+var _omit = __webpack_require__(/*! ../utils/omit */ "./node_modules/react-redux-form/lib/utils/omit.js");
+
+var _omit2 = _interopRequireDefault(_omit);
+
+var _isPlainObject = __webpack_require__(/*! ../utils/is-plain-object */ "./node_modules/react-redux-form/lib/utils/is-plain-object.js");
+
+var _isPlainObject2 = _interopRequireDefault(_isPlainObject);
+
+var _pick = __webpack_require__(/*! ../utils/pick */ "./node_modules/react-redux-form/lib/utils/pick.js");
+
+var _pick2 = _interopRequireDefault(_pick);
+
+var _reactRedux = __webpack_require__(/*! react-redux */ "./node_modules/react-redux/es/index.js");
+
+var _invariant = __webpack_require__(/*! invariant */ "./node_modules/react-redux-form/node_modules/invariant/browser.js");
+
+var _invariant2 = _interopRequireDefault(_invariant);
+
+var _actions = __webpack_require__(/*! ../actions */ "./node_modules/react-redux-form/lib/actions/index.js");
+
+var _actions2 = _interopRequireDefault(_actions);
+
+var _controlComponent = __webpack_require__(/*! ./control-component */ "./node_modules/react-redux-form/lib/components/control-component.js");
+
+var _controlComponent2 = _interopRequireDefault(_controlComponent);
+
+var _controlPropsMap2 = __webpack_require__(/*! ../constants/control-props-map */ "./node_modules/react-redux-form/lib/constants/control-props-map.js");
+
+var _controlPropsMap3 = _interopRequireDefault(_controlPropsMap2);
+
+var _deepCompareChildren = __webpack_require__(/*! ../utils/deep-compare-children */ "./node_modules/react-redux-form/lib/utils/deep-compare-children.js");
+
+var _deepCompareChildren2 = _interopRequireDefault(_deepCompareChildren);
+
+var _shallowCompareWithoutChildren = __webpack_require__(/*! ../utils/shallow-compare-without-children */ "./node_modules/react-redux-form/lib/utils/shallow-compare-without-children.js");
+
+var _shallowCompareWithoutChildren2 = _interopRequireDefault(_shallowCompareWithoutChildren);
+
+var _getModel = __webpack_require__(/*! ../utils/get-model */ "./node_modules/react-redux-form/lib/utils/get-model.js");
+
+var _getModel2 = _interopRequireDefault(_getModel);
+
+var _getFieldFromState = __webpack_require__(/*! ../utils/get-field-from-state */ "./node_modules/react-redux-form/lib/utils/get-field-from-state.js");
+
+var _getFieldFromState2 = _interopRequireDefault(_getFieldFromState);
+
+var _resolveModel = __webpack_require__(/*! ../utils/resolve-model */ "./node_modules/react-redux-form/lib/utils/resolve-model.js");
+
+var _resolveModel2 = _interopRequireDefault(_resolveModel);
+
+var _getValue = __webpack_require__(/*! ../utils/get-value */ "./node_modules/react-redux-form/lib/utils/get-value.js");
+
+var _initialFieldState = __webpack_require__(/*! ../constants/initial-field-state */ "./node_modules/react-redux-form/lib/constants/initial-field-state.js");
+
+var _initialFieldState2 = _interopRequireDefault(_initialFieldState);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+var fieldPropTypes = {
+  model: _propTypes2.default.oneOfType([_propTypes2.default.func, _propTypes2.default.string]).isRequired,
+  component: _propTypes2.default.oneOfType([_propTypes2.default.func, _propTypes2.default.string]),
+  parser: _propTypes2.default.func,
+  formatter: _propTypes2.default.func,
+  updateOn: _propTypes2.default.oneOfType([_propTypes2.default.arrayOf(_propTypes2.default.string), _propTypes2.default.string]),
+  changeAction: _propTypes2.default.func,
+  validators: _propTypes2.default.oneOfType([_propTypes2.default.func, _propTypes2.default.object]),
+  asyncValidators: _propTypes2.default.object,
+  validateOn: _propTypes2.default.oneOfType([_propTypes2.default.arrayOf(_propTypes2.default.string), _propTypes2.default.string]),
+  asyncValidateOn: _propTypes2.default.oneOfType([_propTypes2.default.arrayOf(_propTypes2.default.string), _propTypes2.default.string]),
+  errors: _propTypes2.default.oneOfType([_propTypes2.default.func, _propTypes2.default.object]),
+  mapProps: _propTypes2.default.oneOfType([_propTypes2.default.func, _propTypes2.default.object]),
+  componentMap: _propTypes2.default.object,
+  dynamic: _propTypes2.default.bool,
+  dispatch: _propTypes2.default.func,
+  getRef: _propTypes2.default.func,
+
+  // Calculated props
+  fieldValue: _propTypes2.default.object,
+  store: _propTypes2.default.shape({
+    subscribe: _propTypes2.default.func,
+    dispatch: _propTypes2.default.func,
+    getState: _propTypes2.default.func
+  }),
+  storeSubscription: _propTypes2.default.any
+};
+
+function getControlType(control, props, options) {
+  var _controlPropsMap = options.controlPropsMap;
+
+
+  var controlDisplayNames = Object.keys(_controlPropsMap).filter(function (controlKey) {
+    var propsMap = _controlPropsMap[controlKey];
+
+    if ((0, _isPlainObject2.default)(propsMap) && propsMap.component) {
+      return control.type === propsMap.component;
+    }
+
+    return false;
+  });
+
+  if (controlDisplayNames.length) return controlDisplayNames[0];
+
+  try {
+    var controlDisplayName = control.constructor.displayName || control.type.displayName || control.type.name || control.type;
+
+    if (controlDisplayName === 'input') {
+      controlDisplayName = _controlPropsMap[control.props.type] ? control.props.type : 'text';
+    }
+
+    return _controlPropsMap[controlDisplayName] ? controlDisplayName : null;
+  } catch (error) {
+    return undefined;
+  }
+}
+
+var defaultStrategy = {
+  Control: _controlComponent2.default,
+  controlPropTypes: fieldPropTypes,
+  getFieldFromState: _getFieldFromState2.default,
+  actions: _actions2.default
+};
+
+function createFieldClass() {
+  var customControlPropsMap = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
+  var s = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : defaultStrategy;
+
+  // Use the fieldPropTypes if no controlProptypes have been defined to
+  // maintain backwards compatibiltiy.
+  var controlPropTypes = s.controlPropTypes || fieldPropTypes;
+
+  function mapStateToProps(state, props) {
+    var model = props.model;
+
+
+    var modelString = (0, _getModel2.default)(model, state);
+    var fieldValue = s.getFieldFromState(state, modelString) || _initialFieldState2.default;
+
+    return {
+      model: modelString,
+      fieldValue: fieldValue
+    };
+  }
+
+  var options = {
+    controlPropsMap: _extends({}, _controlPropsMap3.default, customControlPropsMap)
+  };
+
+  // TODO: refactor
+  var defaultControlPropsMap = {
+    checkbox: {
+      changeAction: s.actions.checkWithValue,
+      getValue: _getValue.getCheckboxValue,
+      isToggle: true
+    },
+    radio: {
+      isToggle: true
+    }
+  };
+
+  var Field = function (_Component) {
+    _inherits(Field, _Component);
+
+    function Field() {
+      _classCallCheck(this, Field);
+
+      return _possibleConstructorReturn(this, (Field.__proto__ || Object.getPrototypeOf(Field)).apply(this, arguments));
+    }
+
+    _createClass(Field, [{
+      key: 'shouldComponentUpdate',
+      value: function shouldComponentUpdate(nextProps, nextState) {
+        var dynamic = this.props.dynamic;
+
+
+        if (dynamic) {
+          return (0, _deepCompareChildren2.default)(this, nextProps, nextState);
+        }
+
+        return (0, _shallowCompareWithoutChildren2.default)(this, nextProps);
+      }
+    }, {
+      key: 'createControlComponent',
+      value: function createControlComponent(control) {
+        var props = this.props;
+
+
+        if (!control || !control.props || control instanceof _controlComponent2.default) {
+          return control;
+        }
+
+        var controlType = getControlType(control, props, options);
+        var _props$mapProps = props.mapProps,
+            mapProps = _props$mapProps === undefined ? options.controlPropsMap[controlType] : _props$mapProps;
+
+
+        var controlProps = (0, _pick2.default)(props, Object.keys(controlPropTypes));
+
+        if (!mapProps) {
+          return _react2.default.cloneElement(control, null, this.mapChildrenToControl(control.props.children));
+        }
+
+        return _react2.default.createElement(s.Control, _extends({}, controlProps, {
+          control: control,
+          controlProps: control.props,
+          component: control.type,
+          mapProps: mapProps
+        }, defaultControlPropsMap[controlType] || {}));
+      }
+    }, {
+      key: 'mapChildrenToControl',
+      value: function mapChildrenToControl(children) {
+        var _this2 = this;
+
+        if (_react2.default.Children.count(children) > 1) {
+          return _react2.default.Children.map(children, function (child) {
+            return _this2.createControlComponent(child);
+          });
+        }
+
+        return this.createControlComponent(children);
+      }
+    }, {
+      key: 'render',
+      value: function render() {
+        var _props = this.props,
+            component = _props.component,
+            children = _props.children,
+            fieldValue = _props.fieldValue;
+
+
+        var allowedProps = (0, _omit2.default)(this.props, Object.keys(controlPropTypes));
+        var renderableChildren = typeof children === 'function' ? children(fieldValue) : children;
+
+        if (!component) {
+          (0, _invariant2.default)(_react2.default.Children.count(renderableChildren) === 1, 'Empty wrapper components for <Field> are only possible' + 'when there is a single child. Please check the children' + ('passed into <Field model="' + this.props.model + '">.'));
+
+          return this.createControlComponent(renderableChildren);
+        }
+
+        return _react2.default.createElement(component, allowedProps, this.mapChildrenToControl(renderableChildren));
+      }
+    }]);
+
+    return Field;
+  }(_react.Component);
+
+  if (true) {
+     true ? Field.propTypes = fieldPropTypes : undefined;
+  }
+
+  Field.defaultProps = {
+    updateOn: 'change',
+    asyncValidateOn: 'blur',
+    parser: _identity2.default,
+    formatter: _identity2.default,
+    changeAction: _actions2.default.change,
+    dynamic: true,
+    component: 'div'
+  };
+
+  return (0, _resolveModel2.default)((0, _reactRedux.connect)(mapStateToProps)(Field));
+}
+
+exports.controlPropsMap = _controlPropsMap3.default;
+exports.createFieldClass = createFieldClass;
+exports.default = createFieldClass(_controlPropsMap3.default);
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/components/fieldset-component.js":
+/*!****************************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/components/fieldset-component.js ***!
+  \****************************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+var _react = __webpack_require__(/*! react */ "./node_modules/react/index.js");
+
+var _react2 = _interopRequireDefault(_react);
+
+var _propTypes = __webpack_require__(/*! prop-types */ "./node_modules/prop-types/index.js");
+
+var _propTypes2 = _interopRequireDefault(_propTypes);
+
+var _reactRedux = __webpack_require__(/*! react-redux */ "./node_modules/react-redux/es/index.js");
+
+var _getModel = __webpack_require__(/*! ../utils/get-model */ "./node_modules/react-redux-form/lib/utils/get-model.js");
+
+var _getModel2 = _interopRequireDefault(_getModel);
+
+var _omit = __webpack_require__(/*! ../utils/omit */ "./node_modules/react-redux-form/lib/utils/omit.js");
+
+var _omit2 = _interopRequireDefault(_omit);
+
+var _resolveModel = __webpack_require__(/*! ../utils/resolve-model */ "./node_modules/react-redux-form/lib/utils/resolve-model.js");
+
+var _resolveModel2 = _interopRequireDefault(_resolveModel);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+var propTypes = {
+  model: _propTypes2.default.string.isRequired,
+  component: _propTypes2.default.any,
+  dispatch: _propTypes2.default.func,
+  store: _propTypes2.default.shape({
+    subscribe: _propTypes2.default.func,
+    dispatch: _propTypes2.default.func,
+    getState: _propTypes2.default.func
+  }),
+  storeSubscription: _propTypes2.default.any
+};
+
+var Fieldset = function (_Component) {
+  _inherits(Fieldset, _Component);
+
+  function Fieldset() {
+    _classCallCheck(this, Fieldset);
+
+    return _possibleConstructorReturn(this, (Fieldset.__proto__ || Object.getPrototypeOf(Fieldset)).apply(this, arguments));
+  }
+
+  _createClass(Fieldset, [{
+    key: 'getChildContext',
+    value: function getChildContext() {
+      return { model: this.props.model };
+    }
+  }, {
+    key: 'render',
+    value: function render() {
+      var component = this.props.component;
+
+
+      var allowedProps = (0, _omit2.default)(this.props, Object.keys(propTypes));
+
+      return _react2.default.createElement(component, allowedProps);
+    }
+  }]);
+
+  return Fieldset;
+}(_react.Component);
+
+Fieldset.displayName = 'Fieldset';
+
+Fieldset.childContextTypes = {
+  model: _propTypes2.default.any
+};
+
+ true ? Fieldset.propTypes = propTypes : undefined;
+
+Fieldset.defaultProps = {
+  component: 'div'
+};
+
+function mapStateToProps(state, _ref) {
+  var model = _ref.model;
+
+  var modelString = (0, _getModel2.default)(model, state);
+
+  return {
+    model: modelString
+  };
+}
+
+exports.default = (0, _resolveModel2.default)((0, _reactRedux.connect)(mapStateToProps)(Fieldset));
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/components/form-component.js":
+/*!************************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/components/form-component.js ***!
+  \************************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.createFormClass = undefined;
+
+var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
+
+var _slicedToArray = function () { function sliceIterator(arr, i) { var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"]) _i["return"](); } finally { if (_d) throw _e; } } return _arr; } return function (arr, i) { if (Array.isArray(arr)) { return arr; } else if (Symbol.iterator in Object(arr)) { return sliceIterator(arr, i); } else { throw new TypeError("Invalid attempt to destructure non-iterable instance"); } }; }();
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+var _react = __webpack_require__(/*! react */ "./node_modules/react/index.js");
+
+var _react2 = _interopRequireDefault(_react);
+
+var _propTypes = __webpack_require__(/*! prop-types */ "./node_modules/prop-types/index.js");
+
+var _propTypes2 = _interopRequireDefault(_propTypes);
+
+var _reactRedux = __webpack_require__(/*! react-redux */ "./node_modules/react-redux/es/index.js");
+
+var _shallowEqual = __webpack_require__(/*! ../utils/shallow-equal */ "./node_modules/react-redux-form/lib/utils/shallow-equal.js");
+
+var _shallowEqual2 = _interopRequireDefault(_shallowEqual);
+
+var _get2 = __webpack_require__(/*! ../utils/get */ "./node_modules/react-redux-form/lib/utils/get.js");
+
+var _get3 = _interopRequireDefault(_get2);
+
+var _omit = __webpack_require__(/*! ../utils/omit */ "./node_modules/react-redux-form/lib/utils/omit.js");
+
+var _omit2 = _interopRequireDefault(_omit);
+
+var _actions = __webpack_require__(/*! ../actions */ "./node_modules/react-redux-form/lib/actions/index.js");
+
+var _actions2 = _interopRequireDefault(_actions);
+
+var _getValidity = __webpack_require__(/*! ../utils/get-validity */ "./node_modules/react-redux-form/lib/utils/get-validity.js");
+
+var _getValidity2 = _interopRequireDefault(_getValidity);
+
+var _invertValidators = __webpack_require__(/*! ../utils/invert-validators */ "./node_modules/react-redux-form/lib/utils/invert-validators.js");
+
+var _invertValidators2 = _interopRequireDefault(_invertValidators);
+
+var _isValidityInvalid = __webpack_require__(/*! ../utils/is-validity-invalid */ "./node_modules/react-redux-form/lib/utils/is-validity-invalid.js");
+
+var _isValidityInvalid2 = _interopRequireDefault(_isValidityInvalid);
+
+var _isValid = __webpack_require__(/*! ../form/is-valid */ "./node_modules/react-redux-form/lib/form/is-valid.js");
+
+var _isValid2 = _interopRequireDefault(_isValid);
+
+var _getForm = __webpack_require__(/*! ../utils/get-form */ "./node_modules/react-redux-form/lib/utils/get-form.js");
+
+var _getForm2 = _interopRequireDefault(_getForm);
+
+var _getModel = __webpack_require__(/*! ../utils/get-model */ "./node_modules/react-redux-form/lib/utils/get-model.js");
+
+var _getModel2 = _interopRequireDefault(_getModel);
+
+var _getField = __webpack_require__(/*! ../utils/get-field */ "./node_modules/react-redux-form/lib/utils/get-field.js");
+
+var _getField2 = _interopRequireDefault(_getField);
+
+var _deepCompareChildren = __webpack_require__(/*! ../utils/deep-compare-children */ "./node_modules/react-redux-form/lib/utils/deep-compare-children.js");
+
+var _deepCompareChildren2 = _interopRequireDefault(_deepCompareChildren);
+
+var _containsEvent = __webpack_require__(/*! ../utils/contains-event */ "./node_modules/react-redux-form/lib/utils/contains-event.js");
+
+var _containsEvent2 = _interopRequireDefault(_containsEvent);
+
+var _mergeValidity = __webpack_require__(/*! ../utils/merge-validity */ "./node_modules/react-redux-form/lib/utils/merge-validity.js");
+
+var _mergeValidity2 = _interopRequireDefault(_mergeValidity);
+
+var _invariant = __webpack_require__(/*! invariant */ "./node_modules/react-redux-form/node_modules/invariant/browser.js");
+
+var _invariant2 = _interopRequireDefault(_invariant);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+var propTypes = {
+  component: _propTypes2.default.any,
+  validators: _propTypes2.default.oneOfType([_propTypes2.default.object, _propTypes2.default.func]),
+  errors: _propTypes2.default.object,
+  validateOn: _propTypes2.default.oneOf(['change', 'submit']),
+  model: _propTypes2.default.string.isRequired,
+  modelValue: _propTypes2.default.any,
+  formValue: _propTypes2.default.object,
+  onSubmit: _propTypes2.default.func,
+  onSubmitFailed: _propTypes2.default.func,
+  dispatch: _propTypes2.default.func,
+  children: _propTypes2.default.oneOfType([_propTypes2.default.func, _propTypes2.default.node]),
+  store: _propTypes2.default.shape({
+    subscribe: _propTypes2.default.func,
+    dispatch: _propTypes2.default.func,
+    getState: _propTypes2.default.func
+  }),
+  storeSubscription: _propTypes2.default.any,
+  onUpdate: _propTypes2.default.func,
+  onChange: _propTypes2.default.func,
+  getRef: _propTypes2.default.func,
+  getDispatch: _propTypes2.default.func,
+  onBeforeSubmit: _propTypes2.default.func,
+  hideNativeErrors: _propTypes2.default.bool,
+
+  // standard HTML attributes
+  action: _propTypes2.default.string,
+  noValidate: _propTypes2.default.bool
+};
+
+var htmlAttributes = ['action', 'noValidate'];
+var disallowedPropTypeKeys = Object.keys(propTypes).filter(function (key) {
+  return htmlAttributes.indexOf(key) === -1;
+});
+
+var defaultStrategy = {
+  get: _get3.default,
+  getForm: _getForm2.default,
+  actions: _actions2.default
+};
+
+function createFormClass() {
+  var s = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : defaultStrategy;
+
+  var Form = function (_Component) {
+    _inherits(Form, _Component);
+
+    function Form(props) {
+      _classCallCheck(this, Form);
+
+      var _this = _possibleConstructorReturn(this, (Form.__proto__ || Object.getPrototypeOf(Form)).call(this, props));
+
+      _this.handleSubmit = _this.handleSubmit.bind(_this);
+      _this.handleReset = _this.handleReset.bind(_this);
+      _this.handleValidSubmit = _this.handleValidSubmit.bind(_this);
+      _this.handleInvalidSubmit = _this.handleInvalidSubmit.bind(_this);
+      _this.attachNode = _this.attachNode.bind(_this);
+
+      _this.state = {
+        lastSubmitEvent: null
+      };
+      return _this;
+    }
+
+    _createClass(Form, [{
+      key: 'getChildContext',
+      value: function getChildContext() {
+        return {
+          model: this.props.model,
+          localStore: this.props.store
+        };
+      }
+    }, {
+      key: 'componentDidMount',
+      value: function componentDidMount() {
+        if ((0, _containsEvent2.default)(this.props.validateOn, 'change')) {
+          this.validate(this.props, true);
+        }
+
+        if (this.props.getDispatch) {
+          this.props.getDispatch(this.props.dispatch);
+        }
+      }
+    }, {
+      key: 'componentWillReceiveProps',
+      value: function componentWillReceiveProps(nextProps) {
+        if ((0, _containsEvent2.default)(nextProps.validateOn, 'change')) {
+          this.validate(nextProps);
+        }
+      }
+    }, {
+      key: 'shouldComponentUpdate',
+      value: function shouldComponentUpdate(nextProps, nextState) {
+        return (0, _deepCompareChildren2.default)(this, nextProps, nextState);
+      }
+    }, {
+      key: 'componentDidUpdate',
+      value: function componentDidUpdate(prevProps) {
+        this.handleIntents();
+
+        if (!(0, _shallowEqual2.default)(prevProps.formValue, this.props.formValue)) {
+          this.handleUpdate();
+        }
+
+        if (!(0, _shallowEqual2.default)(prevProps.modelValue, this.props.modelValue)) {
+          this.handleChange();
+        }
+      }
+    }, {
+      key: 'handleUpdate',
+      value: function handleUpdate() {
+        if (this.props.onUpdate) {
+          this.props.onUpdate(this.props.formValue);
+        }
+      }
+    }, {
+      key: 'handleChange',
+      value: function handleChange() {
+        if (this.props.onChange) {
+          this.props.onChange(this.props.modelValue);
+        }
+      }
+    }, {
+      key: 'attachNode',
+      value: function attachNode(node) {
+        if (!node) return;
+
+        this._node = node;
+
+        this._node.submit = this.handleSubmit;
+        if (this.props.getRef) this.props.getRef(node);
+      }
+    }, {
+      key: 'validate',
+      value: function validate(nextProps) {
+        var _this2 = this;
+
+        var initial = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : false;
+        var submit = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : false;
+        var _props = this.props,
+            model = _props.model,
+            dispatch = _props.dispatch,
+            formValue = _props.formValue,
+            modelValue = _props.modelValue;
+        var validators = nextProps.validators,
+            errors = nextProps.errors;
+
+
+        if (!formValue) return;
+
+        if (!validators && !errors && modelValue !== nextProps.modelValue) {
+          return;
+        }
+
+        var validatorsChanged = validators !== this.props.validators || errors !== this.props.errors;
+        var fieldKeys = (validators ? Object.keys(validators) : []).concat(errors ? Object.keys(errors) : []);
+
+        var fieldsErrors = {};
+        var validityChanged = false;
+
+        var keysToValidate = [];
+
+        fieldKeys.forEach(function (key) {
+          if (!!~keysToValidate.indexOf(key)) return;
+
+          var valuesChanged = key === '' ? modelValue !== nextProps.modelValue : s.get(modelValue, key) !== s.get(nextProps.modelValue, key);
+
+          if (submit || initial || valuesChanged || validators && _this2.props.validators[key] !== validators[key] || errors && _this2.props.errors[key] !== errors[key] || !!~key.indexOf('[]')) {
+            keysToValidate.push(key);
+          }
+        });
+
+        var validateField = function validateField(field, errorValidator) {
+          if (!!~field.indexOf('[]')) {
+            var _field$split = field.split('[]'),
+                _field$split2 = _slicedToArray(_field$split, 2),
+                parentModel = _field$split2[0],
+                childModel = _field$split2[1];
+
+            var nextValue = parentModel ? s.get(nextProps.modelValue, parentModel) : nextProps.modelValue;
+
+            nextValue.forEach(function (subValue, index) {
+              validateField(parentModel + '[' + index + ']' + childModel, errorValidator);
+            });
+          } else {
+            var _nextValue = field ? s.get(nextProps.modelValue, field) : nextProps.modelValue;
+
+            var currentErrors = (0, _getField2.default)(formValue, field).errors;
+            var fieldErrors = (0, _getValidity2.default)(errorValidator, _nextValue);
+
+            if (!validityChanged && !(0, _shallowEqual2.default)(fieldErrors, currentErrors)) {
+              validityChanged = true;
+            }
+
+            fieldsErrors[field] = (0, _mergeValidity2.default)(fieldsErrors[field], fieldErrors);
+          }
+        };
+
+        keysToValidate.forEach(function (field) {
+          if (validators && validators[field]) {
+            validateField(field, (0, _invertValidators2.default)(validators[field]));
+          }
+          if (errors && errors[field]) {
+            validateField(field, errors[field]);
+          }
+        });
+
+        if (typeof validators === 'function') {
+          var nextValue = nextProps.modelValue;
+          var currentValue = modelValue;
+
+          if (!submit && !initial && !validatorsChanged && nextValue === currentValue) {
+            // If neither the validators nor the values have changed,
+            // the validity didn't change.
+            return;
+          }
+
+          var multiFieldErrors = (0, _getValidity2.default)(validators, nextValue);
+
+          if (multiFieldErrors) {
+            Object.keys(multiFieldErrors).forEach(function (key) {
+              // key will be the model value to apply errors to.
+              var fieldErrors = multiFieldErrors[key];
+              var currentErrors = (0, _getField2.default)(formValue, key).errors;
+
+              // Invert validators
+              Object.keys(fieldErrors).forEach(function (validationName) {
+                fieldErrors[validationName] = !fieldErrors[validationName];
+              });
+
+              if (!validityChanged && !(0, _shallowEqual2.default)(fieldErrors, currentErrors)) {
+                validityChanged = true;
+              }
+
+              fieldsErrors[key] = (0, _mergeValidity2.default)(fieldsErrors[key], fieldErrors);
+            });
+          }
+        }
+
+        // Compute form-level validity
+        if (!fieldsErrors.hasOwnProperty('') && !~fieldKeys.indexOf('')) {
+          fieldsErrors[''] = false;
+          validityChanged = validityChanged || (0, _isValidityInvalid2.default)(formValue.$form.errors);
+        }
+
+        if (validityChanged) {
+          dispatch(s.actions.setFieldsErrors(model, fieldsErrors, { merge: true }));
+        }
+
+        if (submit) {
+          dispatch(s.actions.addIntent(model, { type: 'submit' }));
+        }
+      }
+    }, {
+      key: 'handleValidSubmit',
+      value: function handleValidSubmit(options) {
+        var _props2 = this.props,
+            dispatch = _props2.dispatch,
+            model = _props2.model,
+            modelValue = _props2.modelValue,
+            onSubmit = _props2.onSubmit;
+
+
+        dispatch(s.actions.setPending(model, true, options));
+
+        if (onSubmit) onSubmit(modelValue, this.state.lastSubmitEvent);
+      }
+    }, {
+      key: 'handleInvalidSubmit',
+      value: function handleInvalidSubmit(options) {
+        var _props3 = this.props,
+            onSubmitFailed = _props3.onSubmitFailed,
+            formValue = _props3.formValue,
+            dispatch = _props3.dispatch;
+
+
+        if (onSubmitFailed) {
+          onSubmitFailed(formValue);
+        }
+
+        dispatch(s.actions.setSubmitFailed(this.props.model, true, options));
+      }
+    }, {
+      key: 'handleReset',
+      value: function handleReset(e) {
+        if (e) e.preventDefault();
+
+        this.props.dispatch(s.actions.reset(this.props.model));
+      }
+    }, {
+      key: 'handleIntents',
+      value: function handleIntents() {
+        var _this3 = this;
+
+        var _props4 = this.props,
+            formValue = _props4.formValue,
+            noValidate = _props4.noValidate;
+
+
+        formValue.$form.intents.forEach(function (intent) {
+          switch (intent.type) {
+            case 'submit':
+              {
+                if (noValidate || (0, _isValid2.default)(formValue, { async: false })) {
+                  _this3.handleValidSubmit({ clearIntents: intent });
+                } else {
+                  _this3.handleInvalidSubmit({ clearIntents: intent });
+                }
+
+                return;
+              }
+
+            default:
+              return;
+          }
+        });
+      }
+    }, {
+      key: 'handleSubmit',
+      value: function handleSubmit(e) {
+        if (e && !this.props.action) e.preventDefault();
+        if (e && e.persist) e.persist();
+
+        var _props5 = this.props,
+            modelValue = _props5.modelValue,
+            formValue = _props5.formValue,
+            onSubmit = _props5.onSubmit,
+            validators = _props5.validators,
+            onBeforeSubmit = _props5.onBeforeSubmit;
+
+
+        if (onBeforeSubmit) onBeforeSubmit(e);
+
+        var formValid = formValue ? formValue.$form.valid : true;
+
+        if (!validators && onSubmit && formValid) {
+          onSubmit(modelValue, e);
+
+          return modelValue;
+        }
+
+        this.setState({ lastSubmitEvent: e });
+
+        this.validate(this.props, false, true);
+
+        return modelValue;
+      }
+    }, {
+      key: 'render',
+      value: function render() {
+        var _props6 = this.props,
+            component = _props6.component,
+            children = _props6.children,
+            formValue = _props6.formValue,
+            hideNativeErrors = _props6.hideNativeErrors,
+            noValidate = _props6.noValidate;
+
+
+        var allowedProps = (0, _omit2.default)(this.props, disallowedPropTypeKeys);
+        var renderableChildren = typeof children === 'function' ? children(formValue) : children;
+
+        return _react2.default.createElement(component, _extends({}, allowedProps, {
+          onSubmit: this.handleSubmit,
+          onReset: this.handleReset,
+          ref: this.attachNode,
+          noValidate: hideNativeErrors || noValidate
+        }), renderableChildren);
+      }
+    }]);
+
+    return Form;
+  }(_react.Component);
+
+   true ? Form.propTypes = propTypes : undefined;
+
+  Form.defaultProps = {
+    validateOn: 'change',
+    component: 'form'
+  };
+
+  Form.childContextTypes = {
+    model: _propTypes2.default.any,
+    localStore: _propTypes2.default.shape({
+      subscribe: _propTypes2.default.func,
+      dispatch: _propTypes2.default.func,
+      getState: _propTypes2.default.func
+    })
+  };
+
+  function mapStateToProps(state, _ref) {
+    var model = _ref.model;
+
+    var modelString = (0, _getModel2.default)(model, state);
+    var form = s.getForm(state, modelString);
+
+    (0, _invariant2.default)(form, 'Unable to create Form component. ' + 'Could not find form for "%s" in the store.', modelString);
+
+    return {
+      model: modelString,
+      modelValue: s.get(state, modelString),
+      formValue: form
+    };
+  }
+
+  return (0, _reactRedux.connect)(mapStateToProps)(Form);
+}
+
+exports.createFormClass = createFormClass;
+exports.default = createFormClass();
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/components/local-form-component.js":
+/*!******************************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/components/local-form-component.js ***!
+  \******************************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+var _react = __webpack_require__(/*! react */ "./node_modules/react/index.js");
+
+var _react2 = _interopRequireDefault(_react);
+
+var _propTypes = __webpack_require__(/*! prop-types */ "./node_modules/prop-types/index.js");
+
+var _propTypes2 = _interopRequireDefault(_propTypes);
+
+var _formComponent = __webpack_require__(/*! ./form-component */ "./node_modules/react-redux-form/lib/components/form-component.js");
+
+var _formComponent2 = _interopRequireDefault(_formComponent);
+
+var _formsReducer = __webpack_require__(/*! ../reducers/forms-reducer */ "./node_modules/react-redux-form/lib/reducers/forms-reducer.js");
+
+var _formsReducer2 = _interopRequireDefault(_formsReducer);
+
+var _redux = __webpack_require__(/*! redux */ "./node_modules/redux/es/index.js");
+
+var _omit = __webpack_require__(/*! ../utils/omit */ "./node_modules/react-redux-form/lib/utils/omit.js");
+
+var _omit2 = _interopRequireDefault(_omit);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+var LocalForm = function (_React$Component) {
+  _inherits(LocalForm, _React$Component);
+
+  function LocalForm(props) {
+    _classCallCheck(this, LocalForm);
+
+    var _this = _possibleConstructorReturn(this, (LocalForm.__proto__ || Object.getPrototypeOf(LocalForm)).call(this, props));
+
+    _this.store = props.store || (0, _redux.createStore)((0, _formsReducer2.default)(_defineProperty({}, props.model, props.initialState)));
+
+    _this.dispatch = function (action) {
+      if (typeof action === 'function') {
+        return action(_this.store.dispatch, _this.store.getState);
+      }
+
+      return _this.store.dispatch(action);
+    };
+    return _this;
+  }
+
+  _createClass(LocalForm, [{
+    key: 'componentDidMount',
+    value: function componentDidMount() {
+      if (this.props.getDispatch) {
+        this.props.getDispatch(this.dispatch);
+      }
+    }
+  }, {
+    key: 'render',
+    value: function render() {
+      var allowedProps = (0, _omit2.default)(this.props, ['store', 'initialState']);
+
+      return _react2.default.createElement(_formComponent2.default, _extends({ store: this.store }, allowedProps));
+    }
+  }]);
+
+  return LocalForm;
+}(_react2.default.Component);
+
+LocalForm.displayName = 'LocalForm';
+
+ true ? LocalForm.propTypes = {
+  store: _propTypes2.default.shape({
+    subscribe: _propTypes2.default.func,
+    dispatch: _propTypes2.default.func,
+    getState: _propTypes2.default.func
+  }),
+
+  // provided props
+  initialState: _propTypes2.default.any,
+  model: _propTypes2.default.string.isRequired,
+  getDispatch: _propTypes2.default.func
+} : undefined;
+
+LocalForm.defaultProps = {
+  initialState: {},
+  model: 'local'
+};
+
+exports.default = LocalForm;
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/constants/control-props-map.js":
+/*!**************************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/constants/control-props-map.js ***!
+  \**************************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
+
+var _isMulti = __webpack_require__(/*! ../utils/is-multi */ "./node_modules/react-redux-form/lib/utils/is-multi.js");
+
+var _isMulti2 = _interopRequireDefault(_isMulti);
+
+var _iteratee = __webpack_require__(/*! ../utils/iteratee */ "./node_modules/react-redux-form/lib/utils/iteratee.js");
+
+var _actions = __webpack_require__(/*! ../actions */ "./node_modules/react-redux-form/lib/actions/index.js");
+
+var _actions2 = _interopRequireDefault(_actions);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function getTextValue(value) {
+  if (typeof value === 'string') {
+    return '' + value;
+  }
+
+  return value;
+}
+
+function isChecked(props) {
+  if ((0, _isMulti2.default)(props.model)) {
+    if (!props.modelValue) return false;
+
+    return props.modelValue.some(function (item) {
+      return item === props.value;
+    });
+  }
+  if (typeof props.modelValue === 'undefined') {
+    if (typeof props.defaultChecked !== 'undefined') {
+      return props.defaultChecked;
+    }
+  }
+
+  return !!props.modelValue;
+}
+
+var standardPropsMap = {
+  name: function name(props) {
+    return props.name || props.model;
+  },
+  disabled: function disabled(_ref) {
+    var fieldValue = _ref.fieldValue,
+        _disabled = _ref.disabled;
+    return (0, _iteratee.iterateeValue)(fieldValue, _disabled);
+  },
+  onChange: function onChange(_ref2) {
+    var _onChange = _ref2.onChange;
+    return _onChange;
+  },
+  onBlur: function onBlur(_ref3) {
+    var _onBlur = _ref3.onBlur;
+    return _onBlur;
+  },
+  onFocus: function onFocus(_ref4) {
+    var _onFocus = _ref4.onFocus;
+    return _onFocus;
+  },
+  onKeyPress: function onKeyPress(_ref5) {
+    var _onKeyPress = _ref5.onKeyPress;
+    return _onKeyPress;
+  }
+};
+
+var textPropsMap = _extends({}, standardPropsMap, {
+  // the value passed into the control is either the original control's
+  // value prop (if the control is controlled) or the value controlled by
+  // <Control>.
+  value: function value(props) {
+    if (props.hasOwnProperty('value')) {
+      return props.value;
+    }
+
+    var value = getTextValue(props.viewValue);
+
+    return value === undefined ? '' : value;
+  }
+});
+
+var getModelValue = function getModelValue(_ref6) {
+  var modelValue = _ref6.modelValue;
+  return modelValue;
+};
+var getViewValue = function getViewValue(props) {
+  return props.hasOwnProperty('value') ? props.value : props.viewValue;
+};
+
+var controlPropsMap = {
+  default: _extends({}, standardPropsMap, {
+    value: getViewValue
+  }),
+  checkbox: _extends({}, standardPropsMap, {
+    checked: isChecked
+  }),
+  radio: _extends({}, standardPropsMap, {
+    checked: function checked(props) {
+      return props.defaultChecked ? props.checked : props.modelValue === props.value;
+    },
+    value: function value(props) {
+      return props.value;
+    }
+  }),
+  select: _extends({}, standardPropsMap, {
+    value: getViewValue
+  }),
+  text: textPropsMap,
+  textarea: textPropsMap,
+  file: standardPropsMap,
+  button: _extends({}, standardPropsMap, {
+    value: getModelValue
+  }),
+  reset: _extends({}, standardPropsMap, {
+    onClick: function onClick(props) {
+      return function (event) {
+        event.preventDefault();
+        props.dispatch(_actions2.default.reset(props.model));
+      };
+    }
+  })
+};
+
+exports.default = controlPropsMap;
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/constants/initial-field-state.js":
+/*!****************************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/constants/initial-field-state.js ***!
+  \****************************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+var initialFieldState = {
+  focus: false,
+  pending: false,
+  pristine: true,
+  submitted: false,
+  submitFailed: false,
+  retouched: false,
+  touched: false,
+  valid: true,
+  validating: false,
+  validated: false,
+  validity: {},
+  errors: {},
+  intents: []
+};
+
+exports.default = initialFieldState;
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/constants/null-action.js":
+/*!********************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/constants/null-action.js ***!
+  \********************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+var NULL_ACTION = { type: null };
+
+exports.default = NULL_ACTION;
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/constants/validity-keys.js":
+/*!**********************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/constants/validity-keys.js ***!
+  \**********************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+var validityKeys = ['badInput', 'customError', 'patternMismatch', 'rangeOverflow', 'rangeUnderflow', 'stepMismatch', 'tooLong', 'tooShort', 'typeMismatch', 'valueMissing'];
+
+exports.default = validityKeys;
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/enhancers/batched-enhancer.js":
+/*!*************************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/enhancers/batched-enhancer.js ***!
+  \*************************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _actionTypes = __webpack_require__(/*! ../action-types */ "./node_modules/react-redux-form/lib/action-types.js");
+
+var _actionTypes2 = _interopRequireDefault(_actionTypes);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function createBatchReducer(reducer, initialState) {
+  var options = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+  var transformAction = options.transformAction;
+
+
+  return function () {
+    var state = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : initialState;
+    var action = arguments[1];
+
+    var transformedAction = transformAction ? transformAction(action) : action;
+
+    if (transformedAction.type === _actionTypes2.default.BATCH) {
+      return transformedAction.actions.reduce(reducer, state);
+    }
+
+    return reducer(state, transformedAction);
+  };
+}
+
+exports.default = createBatchReducer;
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/enhancers/modeled-enhancer.js":
+/*!*************************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/enhancers/modeled-enhancer.js ***!
+  \*************************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.createModelReducerEnhancer = undefined;
+
+var _modelReducer2 = __webpack_require__(/*! ../reducers/model-reducer */ "./node_modules/react-redux-form/lib/reducers/model-reducer.js");
+
+var _modelReducer3 = _interopRequireDefault(_modelReducer2);
+
+var _nullAction = __webpack_require__(/*! ../constants/null-action */ "./node_modules/react-redux-form/lib/constants/null-action.js");
+
+var _nullAction2 = _interopRequireDefault(_nullAction);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function createModelReducerEnhancer() {
+  var modelReducerCreator = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : _modelReducer3.default;
+  var options = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
+
+  return function modelReducerEnhancer(reducer, model) {
+    var initialState = void 0;
+    try {
+      initialState = reducer(undefined, _nullAction2.default);
+    } catch (error) {
+      initialState = null;
+    }
+
+    var _modelReducer = modelReducerCreator(model, initialState, options);
+
+    return function () {
+      var state = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : initialState;
+      var action = arguments[1];
+
+      var updatedState = _modelReducer(state, action);
+
+      return reducer(updatedState, action);
+    };
+  };
+}
+
+var modelReducerEnhancer = createModelReducerEnhancer(_modelReducer3.default);
+
+exports.createModelReducerEnhancer = createModelReducerEnhancer;
+exports.default = modelReducerEnhancer;
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/form/index.js":
+/*!*********************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/form/index.js ***!
+  \*********************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.isRetouched = exports.isTouched = exports.isPending = exports.isValid = undefined;
+
+var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
+
+exports.default = formSelector;
+
+var _isValid = __webpack_require__(/*! ./is-valid */ "./node_modules/react-redux-form/lib/form/is-valid.js");
+
+var _isValid2 = _interopRequireDefault(_isValid);
+
+var _isPending = __webpack_require__(/*! ./is-pending */ "./node_modules/react-redux-form/lib/form/is-pending.js");
+
+var _isPending2 = _interopRequireDefault(_isPending);
+
+var _isTouched = __webpack_require__(/*! ./is-touched */ "./node_modules/react-redux-form/lib/form/is-touched.js");
+
+var _isTouched2 = _interopRequireDefault(_isTouched);
+
+var _isRetouched = __webpack_require__(/*! ./is-retouched */ "./node_modules/react-redux-form/lib/form/is-retouched.js");
+
+var _isRetouched2 = _interopRequireDefault(_isRetouched);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function formSelector(formState) {
+  return _extends({}, formState, {
+    get valid() {
+      return (0, _isValid2.default)(formState);
+    },
+    get pending() {
+      return (0, _isPending2.default)(formState);
+    },
+    get touched() {
+      return (0, _isTouched2.default)(formState);
+    },
+    get retouched() {
+      return (0, _isRetouched2.default)(formState);
+    }
+  });
+}
+
+exports.isValid = _isValid2.default;
+exports.isPending = _isPending2.default;
+exports.isTouched = _isTouched2.default;
+exports.isRetouched = _isRetouched2.default;
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/form/is-pending.js":
+/*!**************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/form/is-pending.js ***!
+  \**************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = isPending;
+function isPending(formState) {
+  if (!formState) return false;
+
+  // Field is pending
+  if (!formState.$form) {
+    return formState.pending;
+  }
+
+  // Any field in form is pending
+  return Object.keys(formState).some(function (key) {
+    return isPending(formState[key]);
+  });
+}
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/form/is-pristine.js":
+/*!***************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/form/is-pristine.js ***!
+  \***************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = isPristine;
+function isPristine(formState) {
+  if (!formState) return false;
+
+  // Form is pristine
+  if (!formState.$form) {
+    return formState.pristine;
+  }
+
+  // Every field in form is pristine
+  return Object.keys(formState).every(function (key) {
+    if (key === '$form') return true;
+
+    return isPristine(formState[key]);
+  });
+}
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/form/is-retouched.js":
+/*!****************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/form/is-retouched.js ***!
+  \****************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = isRetouched;
+function isRetouched(formState) {
+  if (!formState) return false;
+
+  // Field is pending
+  if (!formState.$form) {
+    return formState.retouched;
+  }
+
+  // Any field in form is pending
+  return Object.keys(formState).some(function (key) {
+    return isRetouched(formState[key]);
+  });
+}
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/form/is-touched.js":
+/*!**************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/form/is-touched.js ***!
+  \**************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = isTouched;
+function isTouched(formState) {
+  if (!formState) return false;
+
+  // Field is touched
+  if (!formState.$form) {
+    return formState.touched;
+  }
+
+  // Any field in form is touched
+  return Object.keys(formState).some(function (key) {
+    return isTouched(formState[key]);
+  });
+}
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/form/is-valid.js":
+/*!************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/form/is-valid.js ***!
+  \************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = isValid;
+exports.fieldsValid = fieldsValid;
+
+var _isPlainObject = __webpack_require__(/*! ../utils/is-plain-object */ "./node_modules/react-redux-form/lib/utils/is-plain-object.js");
+
+var _isPlainObject2 = _interopRequireDefault(_isPlainObject);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function isValid(formState) {
+  var options = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : { async: true };
+
+  if (!formState) return true;
+
+  if (!formState.$form) {
+    var errors = formState.errors;
+
+
+    if (!Array.isArray(errors) && !(0, _isPlainObject2.default)(errors)) {
+      // If asyncKeys = true and the error is not an
+      // array or object (e.g. string), form errors are entirely async
+      // and should be ignored when async = true.
+      return !options.async && formState.asyncKeys || !errors;
+    }
+
+    return Object.keys(formState.errors).every(function (errorKey) {
+      // if specified to ignore async validator keys and
+      // current error key is an async validator key,
+      // treat key as valid
+      if (!options.async && Array.isArray(formState.asyncKeys) && !!~formState.asyncKeys.indexOf(errorKey)) {
+        return true;
+      }
+
+      var valid = !formState.errors[errorKey];
+
+      return valid;
+    });
+  }
+
+  return Object.keys(formState).every(function (key) {
+    return isValid(formState[key], options);
+  });
+}
+
+function fieldsValid(formState) {
+  var options = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : { async: true };
+
+  return Object.keys(formState).every(function (key) {
+    return key === '$form' || isValid(formState[key], options);
+  });
+}
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/index.js":
+/*!****************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/index.js ***!
+  \****************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.isValid = exports.track = exports.getModel = exports.getField = exports.form = exports.batched = exports.modeled = exports.createFieldClass = exports.Fieldset = exports.Errors = exports.LocalForm = exports.Form = exports.Control = exports.Field = exports.controls = exports.actionTypes = exports.actions = exports.initialFieldState = exports.createForms = exports.combineForms = exports.modelReducer = exports.formReducer = undefined;
+
+var _actions = __webpack_require__(/*! ./actions */ "./node_modules/react-redux-form/lib/actions/index.js");
+
+var _actions2 = _interopRequireDefault(_actions);
+
+var _actionTypes = __webpack_require__(/*! ./action-types */ "./node_modules/react-redux-form/lib/action-types.js");
+
+var _actionTypes2 = _interopRequireDefault(_actionTypes);
+
+var _fieldComponent = __webpack_require__(/*! ./components/field-component */ "./node_modules/react-redux-form/lib/components/field-component.js");
+
+var _fieldComponent2 = _interopRequireDefault(_fieldComponent);
+
+var _fieldsetComponent = __webpack_require__(/*! ./components/fieldset-component */ "./node_modules/react-redux-form/lib/components/fieldset-component.js");
+
+var _fieldsetComponent2 = _interopRequireDefault(_fieldsetComponent);
+
+var _controlComponent = __webpack_require__(/*! ./components/control-component */ "./node_modules/react-redux-form/lib/components/control-component.js");
+
+var _controlComponent2 = _interopRequireDefault(_controlComponent);
+
+var _formComponent = __webpack_require__(/*! ./components/form-component */ "./node_modules/react-redux-form/lib/components/form-component.js");
+
+var _formComponent2 = _interopRequireDefault(_formComponent);
+
+var _localFormComponent = __webpack_require__(/*! ./components/local-form-component */ "./node_modules/react-redux-form/lib/components/local-form-component.js");
+
+var _localFormComponent2 = _interopRequireDefault(_localFormComponent);
+
+var _errorsComponent = __webpack_require__(/*! ./components/errors-component */ "./node_modules/react-redux-form/lib/components/errors-component.js");
+
+var _errorsComponent2 = _interopRequireDefault(_errorsComponent);
+
+var _controlPropsMap = __webpack_require__(/*! ./constants/control-props-map */ "./node_modules/react-redux-form/lib/constants/control-props-map.js");
+
+var _controlPropsMap2 = _interopRequireDefault(_controlPropsMap);
+
+var _modeledEnhancer = __webpack_require__(/*! ./enhancers/modeled-enhancer */ "./node_modules/react-redux-form/lib/enhancers/modeled-enhancer.js");
+
+var _modeledEnhancer2 = _interopRequireDefault(_modeledEnhancer);
+
+var _batchedEnhancer = __webpack_require__(/*! ./enhancers/batched-enhancer */ "./node_modules/react-redux-form/lib/enhancers/batched-enhancer.js");
+
+var _batchedEnhancer2 = _interopRequireDefault(_batchedEnhancer);
+
+var _formReducer = __webpack_require__(/*! ./reducers/form-reducer */ "./node_modules/react-redux-form/lib/reducers/form-reducer.js");
+
+var _formReducer2 = _interopRequireDefault(_formReducer);
+
+var _initialFieldState = __webpack_require__(/*! ./constants/initial-field-state */ "./node_modules/react-redux-form/lib/constants/initial-field-state.js");
+
+var _initialFieldState2 = _interopRequireDefault(_initialFieldState);
+
+var _formsReducer = __webpack_require__(/*! ./reducers/forms-reducer */ "./node_modules/react-redux-form/lib/reducers/forms-reducer.js");
+
+var _formsReducer2 = _interopRequireDefault(_formsReducer);
+
+var _modelReducer = __webpack_require__(/*! ./reducers/model-reducer */ "./node_modules/react-redux-form/lib/reducers/model-reducer.js");
+
+var _modelReducer2 = _interopRequireDefault(_modelReducer);
+
+var _track = __webpack_require__(/*! ./utils/track */ "./node_modules/react-redux-form/lib/utils/track.js");
+
+var _track2 = _interopRequireDefault(_track);
+
+var _isValid = __webpack_require__(/*! ./form/is-valid */ "./node_modules/react-redux-form/lib/form/is-valid.js");
+
+var _isValid2 = _interopRequireDefault(_isValid);
+
+var _getFieldFromState = __webpack_require__(/*! ./utils/get-field-from-state */ "./node_modules/react-redux-form/lib/utils/get-field-from-state.js");
+
+var _getFieldFromState2 = _interopRequireDefault(_getFieldFromState);
+
+var _get = __webpack_require__(/*! ./utils/get */ "./node_modules/react-redux-form/lib/utils/get.js");
+
+var _get2 = _interopRequireDefault(_get);
+
+var _form = __webpack_require__(/*! ./form */ "./node_modules/react-redux-form/lib/form/index.js");
+
+var _form2 = _interopRequireDefault(_form);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+exports.formReducer = _formReducer2.default;
+exports.modelReducer = _modelReducer2.default;
+exports.combineForms = _formsReducer2.default;
+exports.createForms = _formsReducer.createForms;
+exports.initialFieldState = _initialFieldState2.default;
+exports.actions = _actions2.default;
+exports.actionTypes = _actionTypes2.default;
+exports.controls = _controlPropsMap2.default;
+exports.Field = _fieldComponent2.default;
+exports.Control = _controlComponent2.default;
+exports.Form = _formComponent2.default;
+exports.LocalForm = _localFormComponent2.default;
+exports.Errors = _errorsComponent2.default;
+exports.Fieldset = _fieldsetComponent2.default;
+exports.createFieldClass = _fieldComponent.createFieldClass;
+exports.modeled = _modeledEnhancer2.default;
+exports.batched = _batchedEnhancer2.default;
+exports.form = _form2.default;
+exports.getField = _getFieldFromState2.default;
+exports.getModel = _get2.default;
+exports.track = _track2.default;
+exports.isValid = _isValid2.default;
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/reducers/form-actions-reducer.js":
+/*!****************************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/reducers/form-actions-reducer.js ***!
+  \****************************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _slicedToArray = function () { function sliceIterator(arr, i) { var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"]) _i["return"](); } finally { if (_d) throw _e; } } return _arr; } return function (arr, i) { if (Array.isArray(arr)) { return arr; } else if (Symbol.iterator in Object(arr)) { return sliceIterator(arr, i); } else { throw new TypeError("Invalid attempt to destructure non-iterable instance"); } }; }();
+
+var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
+
+exports.createFormActionsReducer = createFormActionsReducer;
+
+var _actionTypes = __webpack_require__(/*! ../action-types */ "./node_modules/react-redux-form/lib/action-types.js");
+
+var _actionTypes2 = _interopRequireDefault(_actionTypes);
+
+var _updateField = __webpack_require__(/*! ../utils/update-field */ "./node_modules/react-redux-form/lib/utils/update-field.js");
+
+var _updateField2 = _interopRequireDefault(_updateField);
+
+var _updateParentForms = __webpack_require__(/*! ../utils/update-parent-forms */ "./node_modules/react-redux-form/lib/utils/update-parent-forms.js");
+
+var _updateParentForms2 = _interopRequireDefault(_updateParentForms);
+
+var _updateSubFields = __webpack_require__(/*! ../utils/update-sub-fields */ "./node_modules/react-redux-form/lib/utils/update-sub-fields.js");
+
+var _updateSubFields2 = _interopRequireDefault(_updateSubFields);
+
+var _getFieldForm = __webpack_require__(/*! ../utils/get-field-form */ "./node_modules/react-redux-form/lib/utils/get-field-form.js");
+
+var _getFieldForm2 = _interopRequireDefault(_getFieldForm);
+
+var _isPristine = __webpack_require__(/*! ../form/is-pristine */ "./node_modules/react-redux-form/lib/form/is-pristine.js");
+
+var _isPristine2 = _interopRequireDefault(_isPristine);
+
+var _map = __webpack_require__(/*! ../utils/map */ "./node_modules/react-redux-form/lib/utils/map.js");
+
+var _map2 = _interopRequireDefault(_map);
+
+var _isPlainObject = __webpack_require__(/*! ../utils/is-plain-object */ "./node_modules/react-redux-form/lib/utils/is-plain-object.js");
+
+var _isPlainObject2 = _interopRequireDefault(_isPlainObject);
+
+var _mapValues = __webpack_require__(/*! ../utils/map-values */ "./node_modules/react-redux-form/lib/utils/map-values.js");
+
+var _mapValues2 = _interopRequireDefault(_mapValues);
+
+var _inverse = __webpack_require__(/*! ../utils/inverse */ "./node_modules/react-redux-form/lib/utils/inverse.js");
+
+var _inverse2 = _interopRequireDefault(_inverse);
+
+var _mergeValidity = __webpack_require__(/*! ../utils/merge-validity */ "./node_modules/react-redux-form/lib/utils/merge-validity.js");
+
+var _mergeValidity2 = _interopRequireDefault(_mergeValidity);
+
+var _isValid = __webpack_require__(/*! ../form/is-valid */ "./node_modules/react-redux-form/lib/form/is-valid.js");
+
+var _isValid2 = _interopRequireDefault(_isValid);
+
+var _isValidityValid = __webpack_require__(/*! ../utils/is-validity-valid */ "./node_modules/react-redux-form/lib/utils/is-validity-valid.js");
+
+var _isValidityValid2 = _interopRequireDefault(_isValidityValid);
+
+var _isValidityInvalid = __webpack_require__(/*! ../utils/is-validity-invalid */ "./node_modules/react-redux-form/lib/utils/is-validity-invalid.js");
+
+var _isValidityInvalid2 = _interopRequireDefault(_isValidityInvalid);
+
+var _fieldActions = __webpack_require__(/*! ../actions/field-actions */ "./node_modules/react-redux-form/lib/actions/field-actions.js");
+
+var _fieldActions2 = _interopRequireDefault(_fieldActions);
+
+var _toPath = __webpack_require__(/*! ../utils/to-path */ "./node_modules/react-redux-form/lib/utils/to-path.js");
+
+var _toPath2 = _interopRequireDefault(_toPath);
+
+var _initialFieldState = __webpack_require__(/*! ../constants/initial-field-state */ "./node_modules/react-redux-form/lib/constants/initial-field-state.js");
+
+var _initialFieldState2 = _interopRequireDefault(_initialFieldState);
+
+var _createField = __webpack_require__(/*! ../utils/create-field */ "./node_modules/react-redux-form/lib/utils/create-field.js");
+
+var _assocIn = __webpack_require__(/*! ../utils/assoc-in */ "./node_modules/react-redux-form/lib/utils/assoc-in.js");
+
+var _assocIn2 = _interopRequireDefault(_assocIn);
+
+var _getFormValue = __webpack_require__(/*! ../utils/get-form-value */ "./node_modules/react-redux-form/lib/utils/get-form-value.js");
+
+var _getFormValue2 = _interopRequireDefault(_getFormValue);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+var resetFieldState = function resetFieldState(field, customInitialFieldState) {
+  if (!(0, _isPlainObject2.default)(field)) return field;
+
+  var intents = [{ type: 'reset' }];
+  var resetValue = (0, _createField.getMeta)(field, 'initialValue');
+  var loadedValue = (0, _createField.getMeta)(field, 'loadedValue');
+
+  if (loadedValue && resetValue !== loadedValue) {
+    intents.push({ type: 'load' });
+    resetValue = loadedValue;
+  }
+  return (0, _createField.fieldOrForm)((0, _createField.getMeta)(field, 'model'), resetValue, _extends({}, customInitialFieldState, { intents: intents }));
+};
+
+var setInitialFieldState = function setInitialFieldState(customInitialFieldState) {
+  return function (field) {
+    if (!(0, _isPlainObject2.default)(field)) return field;
+
+    if (field.$form) {
+      // eslint-disable-next-line arrow-body-style
+      return (0, _mapValues2.default)(field, function (fieldState, key) {
+        return key === '$form' ? (0, _createField.updateFieldState)(customInitialFieldState, {
+          value: field.value,
+          model: field.model
+        }) : resetFieldState(fieldState, customInitialFieldState);
+      });
+    }
+
+    return (0, _createField.updateFieldState)(customInitialFieldState, {
+      value: field.value,
+      model: field.model
+    });
+  };
+};
+
+var addIntent = function addIntent(intents, newIntent) {
+  if (!intents) return [newIntent];
+  if (intents.some(function (intent) {
+    return intent.type === newIntent.type;
+  })) return intents;
+
+  return intents.concat(newIntent);
+};
+
+var clearIntents = function clearIntents(intents, oldIntent) {
+  if (!intents || typeof oldIntent === 'undefined') return [];
+  return intents.filter(function (intent) {
+    return intent.type !== oldIntent.type;
+  });
+};
+
+var defaultOptions = {
+  initialFieldState: _initialFieldState2.default
+};
+
+function createFormActionsReducer(options) {
+  var formOptions = options ? _extends({}, defaultOptions, options, {
+    initialFieldState: _extends({}, defaultOptions.initialFieldState, options.initialFieldState)
+  }) : defaultOptions;
+
+  var customInitialFieldState = formOptions.initialFieldState;
+
+  return function formActionsReducer(state, action, localPath) {
+    var _getFieldAndForm = (0, _updateField.getFieldAndForm)(state, localPath),
+        _getFieldAndForm2 = _slicedToArray(_getFieldAndForm, 1),
+        field = _getFieldAndForm2[0];
+
+    var fieldState = field && field.$form ? field.$form : field;
+
+    var intents = fieldState.intents;
+
+
+    var fieldUpdates = {};
+    var subFieldUpdates = {};
+    var parentFormUpdates = void 0;
+
+    switch (action.type) {
+      case _actionTypes2.default.FOCUS:
+        {
+          fieldUpdates = {
+            focus: true,
+            intents: action.silent ? intents : addIntent(intents, action)
+          };
+
+          break;
+        }
+
+      case _actionTypes2.default.BLUR:
+      case _actionTypes2.default.SET_TOUCHED:
+        {
+          var fieldForm = (0, _getFieldForm2.default)(state, localPath).$form;
+
+          fieldUpdates = {
+            focus: action.type === _actionTypes2.default.BLUR ? false : field.focus,
+            touched: true,
+            retouched: fieldForm ? !!(fieldForm.submitted || fieldForm.submitFailed) : false
+          };
+
+          parentFormUpdates = {
+            touched: true,
+            retouched: fieldUpdates.retouched
+          };
+
+          break;
+        }
+
+      case _actionTypes2.default.SET_UNTOUCHED:
+        {
+          fieldUpdates = {
+            focus: false,
+            touched: false
+          };
+
+          break;
+        }
+
+      case _actionTypes2.default.SET_PRISTINE:
+      case _actionTypes2.default.SET_DIRTY:
+        {
+          var pristine = action.type === _actionTypes2.default.SET_PRISTINE;
+
+          fieldUpdates = {
+            pristine: pristine
+          };
+
+          subFieldUpdates = {
+            pristine: pristine
+          };
+
+          parentFormUpdates = function parentFormUpdates(form) {
+            return { pristine: (0, _isPristine2.default)(form) };
+          };
+
+          break;
+        }
+
+      case _actionTypes2.default.SET_VALIDATING:
+        {
+          fieldUpdates = {
+            validating: action.validating,
+            validated: !action.validating
+          };
+
+          break;
+        }
+
+      case _actionTypes2.default.SET_VALIDITY:
+      case _actionTypes2.default.SET_ERRORS:
+        {
+          var _fieldUpdates;
+
+          var isErrors = action.type === _actionTypes2.default.SET_ERRORS;
+          var validity = void 0;
+          if (isErrors) {
+            validity = action.merge ? (0, _mergeValidity2.default)(fieldState.errors, action.errors) : action.errors;
+          } else {
+            validity = action.merge ? (0, _mergeValidity2.default)(fieldState.validity, action.validity) : action.validity;
+          }
+
+          var inverseValidity = (0, _isPlainObject2.default)(validity) ? (0, _mapValues2.default)(validity, _inverse2.default) : !validity;
+
+          // If the field is a form, its validity is
+          // also based on whether its fields are all valid.
+          var areFieldsValid = field && field.$form ? (0, _isValid.fieldsValid)(field, { async: false }) : true;
+
+          fieldUpdates = (_fieldUpdates = {}, _defineProperty(_fieldUpdates, isErrors ? 'errors' : 'validity', validity), _defineProperty(_fieldUpdates, isErrors ? 'validity' : 'errors', inverseValidity), _defineProperty(_fieldUpdates, 'validating', false), _defineProperty(_fieldUpdates, 'validated', true), _defineProperty(_fieldUpdates, 'valid', areFieldsValid && (isErrors ? !(0, _isValidityInvalid2.default)(validity) : (0, _isValidityValid2.default)(validity))), _fieldUpdates);
+
+          if (action.async) {
+            var actionValidity = isErrors ? action.errors : action.validity;
+
+            fieldUpdates.asyncKeys = (0, _isPlainObject2.default)(actionValidity) || Array.isArray(actionValidity) ? Object.keys(actionValidity) : true;
+          }
+
+          parentFormUpdates = function parentFormUpdates(form) {
+            return { valid: (0, _isValid2.default)(form) };
+          };
+
+          break;
+        }
+
+      case _actionTypes2.default.SET_FIELDS_VALIDITY:
+        {
+          return (0, _map2.default)(action.fieldsValidity, function (fieldValidity, subField) {
+            return _fieldActions2.default.setValidity(subField, fieldValidity, action.options);
+          }).reduce(function (accState, subAction) {
+            return formActionsReducer(accState, subAction, localPath.concat((0, _toPath2.default)(subAction.model)));
+          }, state);
+        }
+
+      case _actionTypes2.default.RESET_VALIDITY:
+        {
+          var _validity = _extends({}, fieldState.validity);
+          var errors = _extends({}, fieldState.errors);
+          var valid = void 0;
+
+          if (action.omitKeys && action.omitKeys.length > 0) {
+            action.omitKeys.forEach(function (key) {
+              delete _validity[key];
+              delete errors[key];
+            });
+            valid = (0, _isValidityValid2.default)(_validity);
+          } else {
+            _validity = customInitialFieldState.validity;
+            errors = customInitialFieldState.errors;
+            valid = customInitialFieldState.valid;
+          }
+
+          fieldUpdates = {
+            valid: valid,
+            validity: _validity,
+            errors: errors
+          };
+
+          subFieldUpdates = {
+            valid: customInitialFieldState.valid,
+            validity: customInitialFieldState.validity,
+            errors: customInitialFieldState.errors
+          };
+
+          break;
+        }
+
+      case _actionTypes2.default.SET_PENDING:
+        {
+          fieldUpdates = {
+            pending: action.pending,
+            submitted: false,
+            submitFailed: false,
+            retouched: false
+          };
+
+          subFieldUpdates = {
+            pending: action.pending,
+            submitted: false,
+            submitFailed: false,
+            retouched: false
+          };
+
+          parentFormUpdates = { pending: action.pending };
+
+          break;
+        }
+
+      case _actionTypes2.default.SET_SUBMITTED:
+        {
+          var submitted = !!action.submitted;
+
+          fieldUpdates = {
+            pending: false,
+            submitted: submitted,
+            submitFailed: submitted ? false : fieldState && fieldState.submitFailed,
+            touched: true,
+            retouched: false
+          };
+
+          subFieldUpdates = {
+            pending: false,
+            submitted: submitted,
+            submitFailed: submitted ? false : fieldUpdates.submitFailed,
+            retouched: false
+          };
+
+          break;
+        }
+
+      case _actionTypes2.default.SET_SUBMIT_FAILED:
+        {
+          fieldUpdates = {
+            pending: false,
+            submitted: fieldState.submitted && !action.submitFailed,
+            submitFailed: !!action.submitFailed,
+            touched: true,
+            retouched: false
+          };
+
+          subFieldUpdates = {
+            pending: false,
+            submitted: !action.submitFailed,
+            submitFailed: !!action.submitFailed,
+            touched: true,
+            retouched: false
+          };
+
+          break;
+        }
+
+      case _actionTypes2.default.RESET:
+        {
+          return localPath.length ? (0, _assocIn2.default)(state, localPath, resetFieldState(field, customInitialFieldState)) : resetFieldState(field, customInitialFieldState);
+        }
+
+      case _actionTypes2.default.SET_INITIAL:
+        {
+          var setCustomInitialFieldState = setInitialFieldState(customInitialFieldState);
+
+          return (0, _updateField2.default)(state, localPath, setCustomInitialFieldState, setCustomInitialFieldState);
+        }
+
+      case _actionTypes2.default.ADD_INTENT:
+        {
+          fieldUpdates = {
+            intents: addIntent(intents, action.intent)
+          };
+
+          break;
+        }
+
+      case _actionTypes2.default.CLEAR_INTENTS:
+        {
+          fieldUpdates = {
+            intents: clearIntents(intents, action.intent)
+          };
+
+          break;
+        }
+
+      case _actionTypes2.default.CHANGE:
+        {
+          return (0, _updateParentForms2.default)(state, localPath, function (parentForm) {
+            var formModelValue = (0, _getFormValue2.default)(parentForm);
+
+            if (!parentForm.$form) {
+              return _extends({}, customInitialFieldState, {
+                value: formModelValue,
+                initialValue: formModelValue
+              });
+            }
+
+            // If the form is invalid (due to async validity)
+            // but its fields are valid and the value has changed,
+            // the form should be "valid" again.
+            if ((!parentForm.$form.validity || typeof parentForm.$form.validity === 'boolean' || !Object.keys(parentForm.$form.validity).length) && !parentForm.$form.valid && (0, _isValid2.default)(parentForm, { async: false })) {
+              return {
+                value: formModelValue,
+                validity: true,
+                errors: false,
+                valid: true
+              };
+            }
+
+            return {
+              value: formModelValue
+            };
+          });
+        }
+
+      default:
+        return state;
+    }
+
+    if (action.clearIntents) {
+      fieldUpdates.intents = clearIntents(intents, action.clearIntents);
+    }
+
+    var updatedField = (0, _updateField2.default)(state, localPath, fieldUpdates);
+    var updatedSubFields = Object.keys(subFieldUpdates).length ? (0, _updateSubFields2.default)(updatedField, localPath, subFieldUpdates) : updatedField;
+    var updatedParentForms = parentFormUpdates ? (0, _updateParentForms2.default)(updatedSubFields, localPath, parentFormUpdates) : updatedSubFields;
+
+    return updatedParentForms;
+  };
+}
+
+exports.default = createFormActionsReducer();
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/reducers/form-reducer.js":
+/*!********************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/reducers/form-reducer.js ***!
+  \********************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.createInitialState = createInitialState;
+exports.default = createFormReducer;
+
+var _get2 = __webpack_require__(/*! ../utils/get */ "./node_modules/react-redux-form/lib/utils/get.js");
+
+var _get3 = _interopRequireDefault(_get2);
+
+var _arraysEqual = __webpack_require__(/*! ../utils/arrays-equal */ "./node_modules/react-redux-form/lib/utils/arrays-equal.js");
+
+var _arraysEqual2 = _interopRequireDefault(_arraysEqual);
+
+var _isPlainObject = __webpack_require__(/*! ../utils/is-plain-object */ "./node_modules/react-redux-form/lib/utils/is-plain-object.js");
+
+var _isPlainObject2 = _interopRequireDefault(_isPlainObject);
+
+var _toPath = __webpack_require__(/*! ../utils/to-path */ "./node_modules/react-redux-form/lib/utils/to-path.js");
+
+var _toPath2 = _interopRequireDefault(_toPath);
+
+var _composeReducers = __webpack_require__(/*! ../utils/compose-reducers */ "./node_modules/react-redux-form/lib/utils/compose-reducers.js");
+
+var _composeReducers2 = _interopRequireDefault(_composeReducers);
+
+var _batchedEnhancer = __webpack_require__(/*! ../enhancers/batched-enhancer */ "./node_modules/react-redux-form/lib/enhancers/batched-enhancer.js");
+
+var _batchedEnhancer2 = _interopRequireDefault(_batchedEnhancer);
+
+var _changeActionReducer = __webpack_require__(/*! ./form/change-action-reducer */ "./node_modules/react-redux-form/lib/reducers/form/change-action-reducer.js");
+
+var _changeActionReducer2 = _interopRequireDefault(_changeActionReducer);
+
+var _formActionsReducer = __webpack_require__(/*! ./form-actions-reducer */ "./node_modules/react-redux-form/lib/reducers/form-actions-reducer.js");
+
+var _createField = __webpack_require__(/*! ../utils/create-field */ "./node_modules/react-redux-form/lib/utils/create-field.js");
+
+var _createField2 = _interopRequireDefault(_createField);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function _toConsumableArray(arr) { if (Array.isArray(arr)) { for (var i = 0, arr2 = Array(arr.length); i < arr.length; i++) { arr2[i] = arr[i]; } return arr2; } else { return Array.from(arr); } }
+
+function createInitialState(model, state) {
+  var customInitialFieldState = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+  var options = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : {};
+
+  if (Array.isArray(state) || (0, _isPlainObject2.default)(state)) {
+    return (0, _createField.createFormState)(model, state, customInitialFieldState, options);
+  }
+
+  return (0, _createField2.default)(model, state, customInitialFieldState, options);
+}
+
+function wrapFormReducer(plugin, modelPath, initialState) {
+  return function () {
+    var state = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : initialState;
+    var action = arguments[1];
+
+    if (!action.model) return state;
+
+    var path = (0, _toPath2.default)(action.model);
+
+    if (modelPath.length && !(0, _arraysEqual2.default)(path.slice(0, modelPath.length), modelPath)) {
+      return state;
+    }
+
+    var localPath = path.slice(modelPath.length);
+
+    return plugin(state, action, localPath);
+  };
+}
+
+function createFormReducer(model) {
+  var initialState = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
+  var options = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+  var _options$plugins = options.plugins,
+      plugins = _options$plugins === undefined ? [] : _options$plugins,
+      customInitialFieldState = options.initialFieldState,
+      _options$transformAct = options.transformAction,
+      transformAction = _options$transformAct === undefined ? null : _options$transformAct;
+
+  var modelPath = (0, _toPath2.default)(model);
+  var initialFormState = createInitialState(model, initialState, customInitialFieldState, options);
+
+  var defaultPlugins = [_changeActionReducer2.default, (0, _formActionsReducer.createFormActionsReducer)({ initialFieldState: customInitialFieldState })];
+
+  var wrappedPlugins = plugins.concat(defaultPlugins).map(function (plugin) {
+    return wrapFormReducer(plugin, modelPath, initialFormState);
+  });
+
+  return (0, _batchedEnhancer2.default)(_composeReducers2.default.apply(undefined, _toConsumableArray(wrappedPlugins)), undefined, {
+    transformAction: transformAction
+  });
+}
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/reducers/form/change-action-reducer.js":
+/*!**********************************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/reducers/form/change-action-reducer.js ***!
+  \**********************************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
+
+exports.default = changeActionReducer;
+
+var _actionTypes = __webpack_require__(/*! ../../action-types */ "./node_modules/react-redux-form/lib/action-types.js");
+
+var _actionTypes2 = _interopRequireDefault(_actionTypes);
+
+var _icepick = __webpack_require__(/*! icepick */ "./node_modules/icepick/icepick.js");
+
+var _icepick2 = _interopRequireDefault(_icepick);
+
+var _get = __webpack_require__(/*! ../../utils/get */ "./node_modules/react-redux-form/lib/utils/get.js");
+
+var _get2 = _interopRequireDefault(_get);
+
+var _shallowEqual = __webpack_require__(/*! ../../utils/shallow-equal */ "./node_modules/react-redux-form/lib/utils/shallow-equal.js");
+
+var _shallowEqual2 = _interopRequireDefault(_shallowEqual);
+
+var _isPlainObject = __webpack_require__(/*! ../../utils/is-plain-object */ "./node_modules/react-redux-form/lib/utils/is-plain-object.js");
+
+var _isPlainObject2 = _interopRequireDefault(_isPlainObject);
+
+var _mapValues = __webpack_require__(/*! ../../utils/map-values */ "./node_modules/react-redux-form/lib/utils/map-values.js");
+
+var _mapValues2 = _interopRequireDefault(_mapValues);
+
+var _formReducer = __webpack_require__(/*! ../form-reducer */ "./node_modules/react-redux-form/lib/reducers/form-reducer.js");
+
+var _initialFieldState = __webpack_require__(/*! ../../constants/initial-field-state */ "./node_modules/react-redux-form/lib/constants/initial-field-state.js");
+
+var _initialFieldState2 = _interopRequireDefault(_initialFieldState);
+
+var _assocIn = __webpack_require__(/*! ../../utils/assoc-in */ "./node_modules/react-redux-form/lib/utils/assoc-in.js");
+
+var _assocIn2 = _interopRequireDefault(_assocIn);
+
+var _getFormValue = __webpack_require__(/*! ../../utils/get-form-value */ "./node_modules/react-redux-form/lib/utils/get-form-value.js");
+
+var _getFormValue2 = _interopRequireDefault(_getFormValue);
+
+var _invariant = __webpack_require__(/*! invariant */ "./node_modules/react-redux-form/node_modules/invariant/browser.js");
+
+var _invariant2 = _interopRequireDefault(_invariant);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function updateFieldValue(field, action) {
+  var parentModel = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : undefined;
+  var value = action.value,
+      removeKeys = action.removeKeys,
+      silent = action.silent,
+      load = action.load,
+      model = action.model,
+      external = action.external;
+
+
+  var fieldState = field && field.$form ? field.$form : field;
+
+  var changedFieldProps = {
+    validated: false,
+    retouched: fieldState.submitted ? true : fieldState.retouched,
+    // If change originated from Control component (not externally),
+    // then there is no need to remind Control to validate itself.
+    intents: external ? [{ type: 'validate' }] : [],
+    pristine: silent ? fieldState.pristine : false,
+    value: value,
+    loadedValue: load ? value : fieldState.loadedValue
+  };
+
+  if ((0, _shallowEqual2.default)(field.value, value)) {
+    return _icepick2.default.merge(field, changedFieldProps);
+  }
+
+  if (removeKeys) {
+    (0, _invariant2.default)(field && field.$form, 'Unable to remove keys. ' + 'Field for "%s" in store is not an array/object.', model);
+
+    var valueIsArray = Array.isArray(field.$form.value);
+    var removeKeysArray = Array.isArray(removeKeys) ? removeKeys : [removeKeys];
+
+    var result = void 0;
+
+    if (valueIsArray) {
+      result = [];
+
+      Object.keys(field).forEach(function (key) {
+        if (!!~removeKeysArray.indexOf(+key) || key === '$form') return;
+
+        result[key] = _extends({}, field[key]);
+      });
+
+      var finalResult = _extends({}, result.filter(function (f) {
+        return f;
+      }).map(function (subField, index) {
+        return _extends({}, subField, {
+          model: model + '.' + index
+        });
+      }));
+
+      finalResult.$form = field.$form;
+
+      return finalResult;
+    }
+
+    result = _extends({}, field);
+
+    Object.keys(field).forEach(function (key) {
+      if (!!~removeKeysArray.indexOf(key)) {
+        delete result['' + key];
+      }
+    });
+
+    return result;
+  }
+
+  if (!Array.isArray(value) && !(0, _isPlainObject2.default)(value)) {
+    return _icepick2.default.merge(field, _icepick2.default.set(changedFieldProps, 'value', value));
+  }
+
+  var updatedField = (0, _mapValues2.default)(value, function (subValue, index) {
+    // TODO: refactor
+    var subField = field[index] || (0, _formReducer.createInitialState)('' + (parentModel ? parentModel + '.' : '') + model + '.' + index, subValue);
+
+    if (Object.hasOwnProperty.call(subField, '$form')) {
+      return updateFieldValue(subField, {
+        model: index,
+        value: subValue,
+        external: external,
+        silent: silent,
+        load: load
+      }, parentModel ? parentModel + '.' + model : model);
+    }
+
+    if ((0, _shallowEqual2.default)(subValue, subField.value)) {
+      return subField;
+    }
+
+    return _icepick2.default.merge(subField, _icepick2.default.assign(changedFieldProps, {
+      value: subValue,
+      loadedValue: load ? subValue : subField.loadedValue
+    }));
+  });
+
+  var dirtyFormState = _icepick2.default.merge(field.$form || _initialFieldState2.default, _icepick2.default.set(changedFieldProps, 'retouched', field.submitted || field.$form && field.$form.retouched));
+
+  return _icepick2.default.set(updatedField, '$form', dirtyFormState);
+}
+
+function changeActionReducer(state, action, localPath) {
+  if (action.type !== _actionTypes2.default.CHANGE) return state;
+
+  var field = (0, _get2.default)(state, localPath, (0, _formReducer.createInitialState)(action.model, action.value));
+
+  var updatedField = updateFieldValue(field, action);
+
+  if (!localPath.length) return updatedField;
+
+  var updatedState = (0, _assocIn2.default)(state, localPath, updatedField, function (form) {
+    if (!form.$form) return form;
+
+    var formValue = (0, _getFormValue2.default)(form);
+
+    var formUpdates = _extends({}, form.$form, {
+      value: formValue
+    });
+
+    if (action.silent) {
+      formUpdates.loadedValue = formValue;
+    } else {
+      formUpdates.pristine = false;
+    }
+
+    return _extends({}, form, {
+      $form: formUpdates
+    });
+  });
+
+  return updatedState;
+}
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/reducers/forms-reducer.js":
+/*!*********************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/reducers/forms-reducer.js ***!
+  \*********************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.createForms = exports.createFormCombiner = undefined;
+
+var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
+
+var _modeledEnhancer = __webpack_require__(/*! ../enhancers/modeled-enhancer */ "./node_modules/react-redux-form/lib/enhancers/modeled-enhancer.js");
+
+var _modeledEnhancer2 = _interopRequireDefault(_modeledEnhancer);
+
+var _modelReducer = __webpack_require__(/*! ./model-reducer */ "./node_modules/react-redux-form/lib/reducers/model-reducer.js");
+
+var _modelReducer2 = _interopRequireDefault(_modelReducer);
+
+var _formReducer = __webpack_require__(/*! ./form-reducer */ "./node_modules/react-redux-form/lib/reducers/form-reducer.js");
+
+var _formReducer2 = _interopRequireDefault(_formReducer);
+
+var _redux = __webpack_require__(/*! redux */ "./node_modules/redux/es/index.js");
+
+var _identity = __webpack_require__(/*! ../utils/identity */ "./node_modules/react-redux-form/lib/utils/identity.js");
+
+var _identity2 = _interopRequireDefault(_identity);
+
+var _nullAction = __webpack_require__(/*! ../constants/null-action */ "./node_modules/react-redux-form/lib/constants/null-action.js");
+
+var _nullAction2 = _interopRequireDefault(_nullAction);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+function _objectWithoutProperties(obj, keys) { var target = {}; for (var i in obj) { if (keys.indexOf(i) >= 0) continue; if (!Object.prototype.hasOwnProperty.call(obj, i)) continue; target[i] = obj[i]; } return target; }
+
+var defaults = {
+  key: 'forms',
+  plugins: []
+};
+
+function getSubModelString(model, subModel) {
+  if (!model) return subModel;
+
+  return model + '.' + subModel;
+}
+
+var defaultStrategy = {
+  modelReducer: _modelReducer2.default,
+  formReducer: _formReducer2.default,
+  modeled: _modeledEnhancer2.default,
+  toJS: _identity2.default
+};
+
+function createFormCombiner() {
+  var strategy = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : defaultStrategy;
+
+  function createForms(forms) {
+    var model = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : '';
+    var options = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+
+    var formKeys = Object.keys(forms);
+    var modelReducers = {};
+    var initialFormState = {};
+    var optionsWithDefaults = _extends({}, defaults, options);
+
+    var key = optionsWithDefaults.key,
+        plugins = optionsWithDefaults.plugins,
+        formOptions = _objectWithoutProperties(optionsWithDefaults, ['key', 'plugins']);
+
+    formKeys.forEach(function (formKey) {
+      var formValue = forms[formKey];
+      var subModel = getSubModelString(model, formKey);
+
+      if (typeof formValue === 'function') {
+        var initialState = void 0;
+        try {
+          initialState = formValue(undefined, _nullAction2.default);
+        } catch (error) {
+          initialState = null;
+        }
+
+        modelReducers[formKey] = strategy.modeled(formValue, subModel);
+        initialFormState[formKey] = initialState;
+      } else {
+        modelReducers[formKey] = strategy.modelReducer(subModel, formValue);
+        initialFormState[formKey] = strategy.toJS(formValue);
+      }
+    });
+
+    return _extends({}, modelReducers, _defineProperty({}, key, function (state, action) {
+      return strategy.formReducer(model, initialFormState, _extends({
+        plugins: plugins
+      }, formOptions))(state, action);
+    }));
+  }
+
+  function combineForms(forms) {
+    var model = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : '';
+    var options = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+
+    var mappedReducers = createForms(forms, model, options);
+
+    return (0, _redux.combineReducers)(mappedReducers);
+  }
+
+  return {
+    createForms: createForms,
+    combineForms: combineForms
+  };
+}
+
+var _createFormCombiner = createFormCombiner(),
+    defaultCombineForms = _createFormCombiner.combineForms,
+    defaultCreateForms = _createFormCombiner.createForms;
+
+exports.default = defaultCombineForms;
+exports.createFormCombiner = createFormCombiner;
+exports.createForms = defaultCreateForms;
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/reducers/model-reducer.js":
+/*!*********************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/reducers/model-reducer.js ***!
+  \*********************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.createModeler = undefined;
+
+var _get2 = __webpack_require__(/*! ../utils/get */ "./node_modules/react-redux-form/lib/utils/get.js");
+
+var _get3 = _interopRequireDefault(_get2);
+
+var _icepick = __webpack_require__(/*! icepick */ "./node_modules/icepick/icepick.js");
+
+var _icepick2 = _interopRequireDefault(_icepick);
+
+var _arraysEqual = __webpack_require__(/*! ../utils/arrays-equal */ "./node_modules/react-redux-form/lib/utils/arrays-equal.js");
+
+var _arraysEqual2 = _interopRequireDefault(_arraysEqual);
+
+var _toPath = __webpack_require__(/*! ../utils/to-path */ "./node_modules/react-redux-form/lib/utils/to-path.js");
+
+var _toPath2 = _interopRequireDefault(_toPath);
+
+var _actionTypes = __webpack_require__(/*! ../action-types */ "./node_modules/react-redux-form/lib/action-types.js");
+
+var _actionTypes2 = _interopRequireDefault(_actionTypes);
+
+var _batchedEnhancer = __webpack_require__(/*! ../enhancers/batched-enhancer */ "./node_modules/react-redux-form/lib/enhancers/batched-enhancer.js");
+
+var _batchedEnhancer2 = _interopRequireDefault(_batchedEnhancer);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function icepickSet(state, path, value) {
+  return _icepick2.default.setIn(state, path, value);
+}
+
+var defaultStrategy = {
+  get: _get3.default,
+  set: icepickSet,
+  object: {}
+};
+
+function createModeler() {
+  var strategy = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : defaultStrategy;
+  var getter = strategy.get,
+      setter = strategy.set,
+      object = strategy.object;
+
+
+  return function _createModelReducer(model) {
+    var initialState = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : object;
+    var options = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+
+    var modelPath = (0, _toPath2.default)(model);
+
+    var modelReducer = function modelReducer() {
+      var state = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : initialState;
+      var action = arguments[1];
+
+      if (!action.model) {
+        return state;
+      }
+
+      var path = (0, _toPath2.default)(action.model);
+
+      if (!(0, _arraysEqual2.default)(path.slice(0, modelPath.length), modelPath)) {
+        return state;
+      }
+
+      var localPath = path.slice(modelPath.length);
+
+      switch (action.type) {
+        case _actionTypes2.default.CHANGE:
+          if (!localPath.length) {
+            return action.value;
+          }
+
+          if (getter(state, localPath) === action.value) {
+            return state;
+          }
+
+          return setter(state, localPath, action.value);
+
+        case _actionTypes2.default.RESET:
+          if (!localPath.length) {
+            return initialState;
+          }
+
+          if (getter(state, localPath) === getter(initialState, localPath)) {
+            return state;
+          }
+
+          return setter(state, localPath, getter(initialState, localPath));
+
+        default:
+          return state;
+      }
+    };
+
+    return (0, _batchedEnhancer2.default)(modelReducer, initialState, options);
+  };
+}
+
+var modelReducer = createModeler();
+
+exports.createModeler = createModeler;
+exports.default = modelReducer;
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/utils/arrays-equal.js":
+/*!*****************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/utils/arrays-equal.js ***!
+  \*****************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = arraysEqual;
+function arraysEqual(firstArray, secondArray) {
+  return firstArray && secondArray && firstArray.length === secondArray.length && firstArray.every(function (item, index) {
+    return item === secondArray[index];
+  });
+}
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/utils/assoc-in.js":
+/*!*************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/utils/assoc-in.js ***!
+  \*************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.assoc = assoc;
+exports.default = assocIn;
+
+var _identity = __webpack_require__(/*! ./identity */ "./node_modules/react-redux-form/lib/utils/identity.js");
+
+var _identity2 = _interopRequireDefault(_identity);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function objClone(obj) {
+  var keys = Object.keys(obj);
+  var length = keys.length;
+  var result = {};
+  var index = 0;
+  var key = void 0;
+
+  for (; index < length; index += 1) {
+    key = keys[index];
+    result[key] = obj[key];
+  }
+  return result;
+}
+
+function assoc(state, key, value) {
+  var newState = objClone(state);
+
+  newState[key] = value;
+
+  return newState;
+}
+
+function assocIn(state, path, value) {
+  var fn = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : _identity2.default;
+
+  if (!path.length) return value;
+
+  var key0 = path[0];
+
+  if (path.length === 1) {
+    return fn(assoc(state, key0, value));
+  }
+
+  return fn(assoc(state, key0, assocIn(state[key0] || {}, path.slice(1), value, fn)));
+}
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/utils/compose-reducers.js":
+/*!*********************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/utils/compose-reducers.js ***!
+  \*********************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = compose;
+function compose() {
+  for (var _len = arguments.length, reducers = Array(_len), _key = 0; _key < _len; _key++) {
+    reducers[_key] = arguments[_key];
+  }
+
+  return function (state, action) {
+    return reducers.reduceRight(function (prevState, reducer) {
+      return reducer(prevState, action);
+    }, state);
+  };
+}
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/utils/contains-event.js":
+/*!*******************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/utils/contains-event.js ***!
+  \*******************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = containsEvent;
+function containsEvent(events, event) {
+  if (typeof events === 'string') {
+    return events === event;
+  }
+
+  return !!~events.indexOf(event);
+}
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/utils/create-field.js":
+/*!*****************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/utils/create-field.js ***!
+  \*****************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
+
+exports.fieldOrForm = fieldOrForm;
+exports.getMeta = getMeta;
+exports.updateFieldState = updateFieldState;
+exports.default = createFieldState;
+exports.createFormState = createFormState;
+
+var _initialFieldState = __webpack_require__(/*! ../constants/initial-field-state */ "./node_modules/react-redux-form/lib/constants/initial-field-state.js");
+
+var _initialFieldState2 = _interopRequireDefault(_initialFieldState);
+
+var _isPlainObject = __webpack_require__(/*! ./is-plain-object */ "./node_modules/react-redux-form/lib/utils/is-plain-object.js");
+
+var _isPlainObject2 = _interopRequireDefault(_isPlainObject);
+
+var _mapValues = __webpack_require__(/*! ./map-values */ "./node_modules/react-redux-form/lib/utils/map-values.js");
+
+var _mapValues2 = _interopRequireDefault(_mapValues);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+/* eslint-disable no-use-before-define */
+function fieldOrForm(model, value, customInitialFieldState) {
+  // TODO: create toModel()
+  var stringModel = Array.isArray(model) ? model.join('.') : model;
+
+  if (Array.isArray(value) || (0, _isPlainObject2.default)(value)) {
+    return createFormState(stringModel, value, customInitialFieldState);
+  }
+
+  return createFieldState(stringModel, value, customInitialFieldState);
+}
+/* eslint-enable no-use-before-define */
+
+function getMeta(fieldLike, prop) {
+  if (fieldLike && fieldLike.$form) return fieldLike.$form[prop];
+
+  return fieldLike[prop];
+}
+
+function getSubModelString(model, subModel) {
+  if (!model) return subModel;
+
+  return model + '.' + subModel;
+}
+
+function updateFieldState(existingFieldState, updatedFieldState) {
+  var newField = _extends({}, existingFieldState, updatedFieldState);
+
+  return newField;
+}
+
+function createFieldState(model, value, customInitialFieldState) {
+  return _extends({
+    initialValue: value
+  }, _initialFieldState2.default, customInitialFieldState, {
+    model: model,
+    value: value
+  });
+}
+
+function createFormState(model, values, customInitialFieldState) {
+  var options = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : {};
+
+  return _extends({
+    $form: createFieldState(model, values, customInitialFieldState, options)
+  }, options.lazy ? undefined : (0, _mapValues2.default)(values, function (value, key) {
+    var subModel = getSubModelString(model, key);
+
+    return fieldOrForm(subModel, value, customInitialFieldState);
+  }));
+}
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/utils/debounce.js":
+/*!*************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/utils/debounce.js ***!
+  \*************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = debounce;
+function debounce(func, delay) {
+  var timeout = void 0;
+  var laterFunc = void 0;
+
+  var createLaterFunc = function createLaterFunc(args) {
+    return function () {
+      timeout = null;
+      func.apply(null, args);
+
+      // Only run the deferred function once
+      laterFunc = undefined;
+    };
+  };
+
+  var debouncedFunc = function debouncedFunc() {
+    for (var _len = arguments.length, args = Array(_len), _key = 0; _key < _len; _key++) {
+      args[_key] = arguments[_key];
+    }
+
+    clearTimeout(timeout);
+    laterFunc = createLaterFunc(args);
+    timeout = setTimeout(laterFunc, delay);
+  };
+
+  debouncedFunc.flush = function () {
+    clearTimeout(timeout);
+    if (laterFunc) laterFunc();
+  };
+
+  debouncedFunc.cancel = function () {
+    clearTimeout(timeout);
+    laterFunc = undefined;
+  };
+
+  return debouncedFunc;
+}
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/utils/deep-compare-children.js":
+/*!**************************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/utils/deep-compare-children.js ***!
+  \**************************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.compareChildren = compareChildren;
+exports.default = deepCompareChildren;
+
+var _react = __webpack_require__(/*! react */ "./node_modules/react/index.js");
+
+var _react2 = _interopRequireDefault(_react);
+
+var _shallowCompare = __webpack_require__(/*! shallow-compare */ "./node_modules/shallow-compare/es/index.js");
+
+var _shallowCompare2 = _interopRequireDefault(_shallowCompare);
+
+var _shallowEqual = __webpack_require__(/*! ./shallow-equal */ "./node_modules/react-redux-form/lib/utils/shallow-equal.js");
+
+var _shallowEqual2 = _interopRequireDefault(_shallowEqual);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function compareChildren(props, nextProps) {
+  var children = props.children;
+  var nextChildren = nextProps.children;
+
+  // If the number of children changed, then children are different.
+  // If there are no children, use shallowCompare in parent function
+  // to determine if component should update (false && true == false)
+
+  if (_react2.default.Children.count(children) !== _react2.default.Children.count(nextChildren) || !_react2.default.Children.count(children) || !_react2.default.Children.count(nextChildren)) {
+    return true;
+  }
+
+  var childrenArray = _react2.default.Children.toArray(children);
+  var nextChildrenArray = _react2.default.Children.toArray(nextChildren);
+
+  // React.Children.toArray strip's `false` children so lengths
+  // can change
+  if (childrenArray.length !== nextChildrenArray.length) {
+    return false;
+  }
+
+  return [].concat(childrenArray).some(function (child, i) {
+    var nextChild = nextChildrenArray[i];
+
+    if (!child.props || !nextChild.props) {
+      return !(0, _shallowEqual2.default)(child, nextChild);
+    }
+
+    /* eslint-disable no-use-before-define */
+    return deepCompareChildren(child, nextChild.props, nextChild.state);
+  });
+}
+
+function deepCompareChildren(instance, nextProps, nextState) {
+  if (!instance.props.children) return (0, _shallowCompare2.default)(instance, nextProps, nextState);
+
+  return (0, _shallowCompare2.default)(instance, nextProps, nextState) || compareChildren(instance.props, nextProps);
+}
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/utils/ends-with.js":
+/*!**************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/utils/ends-with.js ***!
+  \**************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = endsWith;
+function endsWith(string, subString) {
+  if (typeof string !== 'string') return false;
+
+  var lastIndex = string.lastIndexOf(subString);
+
+  return lastIndex !== -1 && lastIndex + subString.length === string.length;
+}
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/utils/find-key.js":
+/*!*************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/utils/find-key.js ***!
+  \*************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = findKey;
+function findKey(object, predicate) {
+  var resultKey = void 0;
+
+  Object.keys(object).some(function (key) {
+    var isKey = predicate(object[key], key, object);
+
+    if (isKey) {
+      resultKey = key;
+      return true;
+    }
+
+    return false;
+  });
+
+  return resultKey;
+}
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/utils/get-field-form.js":
+/*!*******************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/utils/get-field-form.js ***!
+  \*******************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = getFieldForm;
+
+var _get = __webpack_require__(/*! ./get */ "./node_modules/react-redux-form/lib/utils/get.js");
+
+var _get2 = _interopRequireDefault(_get);
+
+var _invariant = __webpack_require__(/*! invariant */ "./node_modules/react-redux-form/node_modules/invariant/browser.js");
+
+var _invariant2 = _interopRequireDefault(_invariant);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function getFieldForm(state, path) {
+  var formPath = path.slice(0, -1);
+
+  if (!formPath.length) return state;
+
+  var form = (0, _get2.default)(state, formPath);
+
+  (0, _invariant2.default)(form, 'Could not find form for "%s" in the store.', formPath.join('.'));
+
+  return form;
+}
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/utils/get-field-from-state.js":
+/*!*************************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/utils/get-field-from-state.js ***!
+  \*************************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = getFieldFromState;
+
+var _get = __webpack_require__(/*! ./get */ "./node_modules/react-redux-form/lib/utils/get.js");
+
+var _get2 = _interopRequireDefault(_get);
+
+var _toPath = __webpack_require__(/*! ./to-path */ "./node_modules/react-redux-form/lib/utils/to-path.js");
+
+var _toPath2 = _interopRequireDefault(_toPath);
+
+var _getForm = __webpack_require__(/*! ./get-form */ "./node_modules/react-redux-form/lib/utils/get-form.js");
+
+var _getForm2 = _interopRequireDefault(_getForm);
+
+var _isPlainObject = __webpack_require__(/*! ./is-plain-object */ "./node_modules/react-redux-form/lib/utils/is-plain-object.js");
+
+var _isPlainObject2 = _interopRequireDefault(_isPlainObject);
+
+var _invariant = __webpack_require__(/*! invariant */ "./node_modules/react-redux-form/node_modules/invariant/browser.js");
+
+var _invariant2 = _interopRequireDefault(_invariant);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+var defaultStrategy = {
+  getForm: _getForm2.default
+};
+
+function getFieldFromState(state, modelString) {
+  var s = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : defaultStrategy;
+
+  var form = state && '$form' in state ? state : s.getForm(state, modelString);
+
+  if (!form || !form.$form) return null;
+
+  if (!modelString.length) return form;
+
+  (0, _invariant2.default)(form, 'Could not find form for "%s" in the store.', modelString);
+
+  var formPath = (0, _toPath2.default)(form.$form.model);
+  var fieldPath = (0, _toPath2.default)(modelString).slice(formPath.length);
+  var field = (0, _get2.default)(form, fieldPath);
+
+  if (!field) return null;
+  if ((0, _isPlainObject2.default)(field) && '$form' in field) return field.$form;
+
+  return field;
+}
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/utils/get-field.js":
+/*!**************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/utils/get-field.js ***!
+  \**************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = getField;
+
+var _isPlainObject = __webpack_require__(/*! ./is-plain-object */ "./node_modules/react-redux-form/lib/utils/is-plain-object.js");
+
+var _isPlainObject2 = _interopRequireDefault(_isPlainObject);
+
+var _get = __webpack_require__(/*! ./get */ "./node_modules/react-redux-form/lib/utils/get.js");
+
+var _get2 = _interopRequireDefault(_get);
+
+var _initialFieldState = __webpack_require__(/*! ../constants/initial-field-state */ "./node_modules/react-redux-form/lib/constants/initial-field-state.js");
+
+var _initialFieldState2 = _interopRequireDefault(_initialFieldState);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function getField(state, path) {
+  if (true) {
+    if (!(0, _isPlainObject2.default)(state)) {
+      throw new Error('Could not retrieve field \'' + path + '\' ' + 'from an invalid/empty form state.');
+    }
+  }
+
+  var result = (0, _get2.default)(state, path, _initialFieldState2.default);
+
+  if ('$form' in result) return result.$form;
+
+  return result;
+}
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/utils/get-form-value.js":
+/*!*******************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/utils/get-form-value.js ***!
+  \*******************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = getFormValue;
+
+var _mapValues = __webpack_require__(/*! ./map-values */ "./node_modules/react-redux-form/lib/utils/map-values.js");
+
+var _mapValues2 = _interopRequireDefault(_mapValues);
+
+var _toArray = __webpack_require__(/*! ./to-array */ "./node_modules/react-redux-form/lib/utils/to-array.js");
+
+var _toArray2 = _interopRequireDefault(_toArray);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function getFormValue(form) {
+  if (form && !form.$form) {
+    return typeof form.loadedValue !== 'undefined' ? form.loadedValue : form.initialValue;
+  }
+
+  var result = (0, _mapValues2.default)(form, function (field, key) {
+    if (key === '$form') return undefined;
+
+    return getFormValue(field);
+  });
+
+  delete result.$form;
+
+  var isArray = form && form.$form && Array.isArray(form.$form.value);
+
+  return isArray ? (0, _toArray2.default)(result) : result;
+}
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/utils/get-form.js":
+/*!*************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/utils/get-form.js ***!
+  \*************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.clearGetFormCache = undefined;
+exports.getFormStateKey = getFormStateKey;
+
+var _get = __webpack_require__(/*! ../utils/get */ "./node_modules/react-redux-form/lib/utils/get.js");
+
+var _get2 = _interopRequireDefault(_get);
+
+var _isPlainObject = __webpack_require__(/*! ../utils/is-plain-object */ "./node_modules/react-redux-form/lib/utils/is-plain-object.js");
+
+var _isPlainObject2 = _interopRequireDefault(_isPlainObject);
+
+var _pathStartsWith = __webpack_require__(/*! ../utils/path-starts-with */ "./node_modules/react-redux-form/lib/utils/path-starts-with.js");
+
+var _pathStartsWith2 = _interopRequireDefault(_pathStartsWith);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+var defaultStrategy = {
+  get: _get2.default,
+  keys: function keys(state) {
+    return Object.keys(state);
+  },
+  isObject: function isObject(state) {
+    return (0, _isPlainObject2.default)(state);
+  }
+};
+
+function joinPaths() {
+  for (var _len = arguments.length, paths = Array(_len), _key = 0; _key < _len; _key++) {
+    paths[_key] = arguments[_key];
+  }
+
+  return paths.filter(function (path) {
+    return !!path && path.length;
+  }).join('.');
+}
+
+function getFormStateKey(state, model) {
+  var s = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : defaultStrategy;
+  var currentPath = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : '';
+
+  var deepCandidateKeys = [];
+  var result = null;
+
+  s.keys(state).some(function (key) {
+    var subState = s.get(state, key);
+
+    if (subState && s.get(subState, '$form')) {
+      var subStateModel = s.get(subState, '$form.model');
+
+      if ((0, _pathStartsWith2.default)(model, subStateModel) || subStateModel === '') {
+        var localPath = (0, _pathStartsWith.pathDifference)(model, subStateModel);
+
+        var resultPath = [currentPath, key];
+        var currentState = subState;
+
+        localPath.every(function (segment) {
+          if (s.get(currentState, segment) && s.get(currentState, segment + '.$form')) {
+            currentState = s.get(currentState, segment);
+            resultPath.push(segment);
+
+            return true;
+          }
+
+          return false;
+        });
+
+        result = joinPaths.apply(undefined, resultPath);
+
+        return true;
+      }
+
+      return false;
+    }
+
+    if (s.isObject(subState)) {
+      deepCandidateKeys.push(key);
+    }
+
+    return false;
+  });
+
+  if (result) return result;
+
+  deepCandidateKeys.some(function (key) {
+    result = getFormStateKey(s.get(state, key), model, s, joinPaths(currentPath, key));
+
+    return !!result;
+  });
+
+  if (result) return result;
+
+  return null;
+}
+
+var formStateKeyCache = {};
+
+var clearGetFormCache = exports.clearGetFormCache = function clearGetFormCache() {
+  return formStateKeyCache = {};
+}; // eslint-disable-line no-return-assign
+
+var getFormStateKeyCached = function () {
+  return function (state, modelString) {
+    var s = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : defaultStrategy;
+
+    if (formStateKeyCache[modelString]) return formStateKeyCache[modelString];
+
+    var result = getFormStateKey(state, modelString, s);
+
+    formStateKeyCache[modelString] = result; // eslint-disable-line no-return-assign
+
+    return result;
+  };
+}();
+
+function getForm(state, modelString) {
+  var s = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : defaultStrategy;
+
+  var formStateKey = getFormStateKeyCached(state, modelString, s);
+
+  if (!formStateKey) {
+    return null;
+  }
+
+  var form = s.get(state, formStateKey);
+
+  return form;
+}
+
+exports.default = getForm;
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/utils/get-model.js":
+/*!**************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/utils/get-model.js ***!
+  \**************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = getModel;
+function getModel(model, state) {
+  return typeof model === 'function' && state ? model(state) : model;
+}
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/utils/get-validity.js":
+/*!*****************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/utils/get-validity.js ***!
+  \*****************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = getValidity;
+
+var _getValue = __webpack_require__(/*! ./get-value */ "./node_modules/react-redux-form/lib/utils/get-value.js");
+
+var _getValue2 = _interopRequireDefault(_getValue);
+
+var _mapValues = __webpack_require__(/*! ./map-values */ "./node_modules/react-redux-form/lib/utils/map-values.js");
+
+var _mapValues2 = _interopRequireDefault(_mapValues);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function getValidity(validators, value) {
+  var modelValue = (0, _getValue2.default)(value);
+
+  if (typeof validators === 'function') {
+    return validators(modelValue);
+  }
+
+  return (0, _mapValues2.default)(validators, function (validator) {
+    return getValidity(validator, modelValue);
+  });
+}
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/utils/get-value.js":
+/*!**************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/utils/get-value.js ***!
+  \**************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = getValue;
+exports.getCheckboxValue = getCheckboxValue;
+
+var _isMulti = __webpack_require__(/*! ./is-multi */ "./node_modules/react-redux-form/lib/utils/is-multi.js");
+
+var _isMulti2 = _interopRequireDefault(_isMulti);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function _toConsumableArray(arr) { if (Array.isArray(arr)) { for (var i = 0, arr2 = Array(arr.length); i < arr.length; i++) { arr2[i] = arr[i]; } return arr2; } else { return Array.from(arr); } }
+
+function isEvent(event) {
+  return !!(event && event.stopPropagation && event.preventDefault);
+}
+
+function getEventValue(event) {
+  var target = event.target;
+
+
+  if (!target) {
+    if (!event.nativeEvent) {
+      return undefined;
+    }
+
+    return event.nativeEvent.text;
+  }
+
+  if (target.type === 'file') {
+    return [].concat(_toConsumableArray(target.files)) || target.dataTransfer && [].concat(_toConsumableArray(target.dataTransfer.files));
+  }
+
+  if (target.multiple) {
+    return [].concat(_toConsumableArray(target.selectedOptions)).map(function (option) {
+      return option.value;
+    });
+  }
+
+  return target.value;
+}
+
+function getValue(value) {
+  return isEvent(value) ? getEventValue(value) : value;
+}
+
+function getCheckboxValue(_, props) {
+  var controlProps = props.controlProps;
+
+
+  if ((0, _isMulti2.default)(props.model)) {
+    return controlProps.value;
+  }
+
+  return !props.modelValue;
+}
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/utils/get.js":
+/*!********************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/utils/get.js ***!
+  \********************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = get;
+
+var _lodash = __webpack_require__(/*! lodash.get */ "./node_modules/lodash.get/index.js");
+
+var _lodash2 = _interopRequireDefault(_lodash);
+
+var _endsWith = __webpack_require__(/*! ./ends-with */ "./node_modules/react-redux-form/lib/utils/ends-with.js");
+
+var _endsWith2 = _interopRequireDefault(_endsWith);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function get(object, path, defaultValue) {
+  var modelString = path;
+
+  if (typeof path === 'number') {
+    var result = object[path];
+
+    return result === undefined ? defaultValue : result;
+  }
+
+  if (!path.length) return object;
+
+  if ((0, _endsWith2.default)(modelString, '.')) {
+    modelString = modelString.slice(0, -1);
+  } else if ((0, _endsWith2.default)(modelString, '[]')) {
+    modelString = modelString.slice(0, -2);
+  }
+
+  return (0, _lodash2.default)(object, modelString, defaultValue);
+}
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/utils/identity.js":
+/*!*************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/utils/identity.js ***!
+  \*************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = identity;
+function identity(a) {
+  return a;
+}
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/utils/inverse.js":
+/*!************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/utils/inverse.js ***!
+  \************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = inverse;
+function inverse(value) {
+  return !value;
+}
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/utils/invert-validators.js":
+/*!**********************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/utils/invert-validators.js ***!
+  \**********************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = invertValidators;
+
+var _mapValues = __webpack_require__(/*! ./map-values */ "./node_modules/react-redux-form/lib/utils/map-values.js");
+
+var _mapValues2 = _interopRequireDefault(_mapValues);
+
+var _invertValidity = __webpack_require__(/*! ./invert-validity */ "./node_modules/react-redux-form/lib/utils/invert-validity.js");
+
+var _invertValidity2 = _interopRequireDefault(_invertValidity);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function invertValidators(validators) {
+  if (typeof validators === 'function') {
+    return function (val) {
+      return (0, _invertValidity2.default)(validators(val));
+    };
+  }
+
+  return (0, _mapValues2.default)(validators, invertValidators);
+}
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/utils/invert-validity.js":
+/*!********************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/utils/invert-validity.js ***!
+  \********************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = invertValidity;
+
+var _isPlainObject = __webpack_require__(/*! ./is-plain-object */ "./node_modules/react-redux-form/lib/utils/is-plain-object.js");
+
+var _isPlainObject2 = _interopRequireDefault(_isPlainObject);
+
+var _mapValues = __webpack_require__(/*! ./map-values */ "./node_modules/react-redux-form/lib/utils/map-values.js");
+
+var _mapValues2 = _interopRequireDefault(_mapValues);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function invertValidity(validity) {
+  if ((0, _isPlainObject2.default)(validity)) {
+    return (0, _mapValues2.default)(validity, invertValidity);
+  }
+
+  return !validity;
+}
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/utils/is-multi.js":
+/*!*************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/utils/is-multi.js ***!
+  \*************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = isMulti;
+
+var _endsWith = __webpack_require__(/*! ./ends-with */ "./node_modules/react-redux-form/lib/utils/ends-with.js");
+
+var _endsWith2 = _interopRequireDefault(_endsWith);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function isMulti(model) {
+  return (0, _endsWith2.default)(model, '[]');
+}
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/utils/is-native.js":
+/*!**************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/utils/is-native.js ***!
+  \**************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+var isReactNative = typeof window !== 'undefined' && window.navigator && window.navigator.product && window.navigator.product === 'ReactNative';
+
+exports.default = isReactNative;
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/utils/is-plain-object.js":
+/*!********************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/utils/is-plain-object.js ***!
+  \********************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
+
+exports.isObjectLike = isObjectLike;
+exports.default = isPlainObject;
+// Adapted from https://github.com/jonschlinkert/is-plain-object
+function isObjectLike(val) {
+  return val != null && (typeof val === 'undefined' ? 'undefined' : _typeof(val)) === 'object';
+}
+
+function isObject(val) {
+  return isObjectLike(val) && Array.isArray(val) === false;
+}
+
+function isObjectObject(o) {
+  return isObject(o) === true && Object.prototype.toString.call(o) === '[object Object]';
+}
+
+function isPlainObject(o) {
+  if (isObjectObject(o) === false) return false;
+
+  // If has modified constructor
+  var ctor = o.constructor;
+  if (typeof ctor !== 'function') return false;
+
+  // If has modified prototype
+  var prot = ctor.prototype;
+  if (isObjectObject(prot) === false) return false;
+
+  // If constructor does not have an Object-specific method
+  if (prot.hasOwnProperty('isPrototypeOf') === false) {
+    return false;
+  }
+
+  // Most likely a plain Object
+  return true;
+}
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/utils/is-validity-invalid.js":
+/*!************************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/utils/is-validity-invalid.js ***!
+  \************************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = isValidityInvalid;
+
+var _isPlainObject = __webpack_require__(/*! ./is-plain-object */ "./node_modules/react-redux-form/lib/utils/is-plain-object.js");
+
+var _isPlainObject2 = _interopRequireDefault(_isPlainObject);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function isValidityInvalid(errors) {
+  if (Array.isArray(errors)) {
+    return errors.some(isValidityInvalid);
+  }
+
+  if ((0, _isPlainObject2.default)(errors)) {
+    return Object.keys(errors).some(function (key) {
+      return isValidityInvalid(errors[key]);
+    });
+  }
+
+  return !!errors;
+}
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/utils/is-validity-valid.js":
+/*!**********************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/utils/is-validity-valid.js ***!
+  \**********************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = isValidityValid;
+
+var _isPlainObject = __webpack_require__(/*! ./is-plain-object */ "./node_modules/react-redux-form/lib/utils/is-plain-object.js");
+
+var _isPlainObject2 = _interopRequireDefault(_isPlainObject);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function isValidityValid(validity) {
+  if ((0, _isPlainObject2.default)(validity)) {
+    return Object.keys(validity).every(function (key) {
+      return isValidityValid(validity[key]);
+    });
+  }
+
+  return !!validity;
+}
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/utils/iteratee.js":
+/*!*************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/utils/iteratee.js ***!
+  \*************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
+
+exports.createIteratee = createIteratee;
+exports.iterateeValue = iterateeValue;
+
+var _identity = __webpack_require__(/*! ./identity */ "./node_modules/react-redux-form/lib/utils/identity.js");
+
+var _identity2 = _interopRequireDefault(_identity);
+
+var _get2 = __webpack_require__(/*! ../utils/get */ "./node_modules/react-redux-form/lib/utils/get.js");
+
+var _get3 = _interopRequireDefault(_get2);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+var defaultStrategy = {
+  get: _get3.default
+};
+
+function createIteratee() {
+  var s = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : defaultStrategy;
+
+  function matcher(object) {
+    return function (compareObject) {
+      if (compareObject === object) return true;
+
+      return Object.keys(object).every(function (key) {
+        return s.get(object, key) === s.get(compareObject, key);
+      });
+    };
+  }
+
+  function propChecker(prop) {
+    return function (object) {
+      return object && !!s.get(object, prop);
+    };
+  }
+
+  return function (value) {
+    if (typeof value === 'function') {
+      return value;
+    }
+
+    if (value === null) {
+      return _identity2.default;
+    }
+
+    if ((typeof value === 'undefined' ? 'undefined' : _typeof(value)) === 'object') {
+      return matcher(value);
+    }
+
+    return propChecker(value);
+  };
+}
+
+var iteratee = createIteratee();
+
+function iterateeValue(data, value) {
+  if (typeof value === 'function') {
+    return value(data);
+  }
+
+  if (!Array.isArray(value) && (typeof value === 'undefined' ? 'undefined' : _typeof(value)) !== 'object' && typeof value !== 'string') {
+    return !!value;
+  }
+
+  return iteratee(value)(data);
+}
+
+exports.default = iteratee;
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/utils/map-values.js":
+/*!***************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/utils/map-values.js ***!
+  \***************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+function mapValues(object, iteratee) {
+  var result = {};
+
+  Object.keys(object || {}).forEach(function (key) {
+    result[key] = iteratee(object[key], key, object);
+  });
+
+  return result;
+}
+
+exports.default = mapValues;
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/utils/map.js":
+/*!********************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/utils/map.js ***!
+  \********************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = map;
+function map(values, iteratee) {
+  if (Array.isArray(values)) {
+    return values.map(iteratee);
+  }
+
+  var result = Object.keys(values).map(function (key) {
+    return iteratee(values[key], key, values);
+  });
+
+  return result;
+}
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/utils/merge-validity.js":
+/*!*******************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/utils/merge-validity.js ***!
+  \*******************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = mergeValidity;
+
+var _isPlainObject = __webpack_require__(/*! ./is-plain-object */ "./node_modules/react-redux-form/lib/utils/is-plain-object.js");
+
+var _icepick = __webpack_require__(/*! icepick */ "./node_modules/icepick/icepick.js");
+
+function mergeValidity(fieldValidity, actionValidity) {
+  if (!(0, _isPlainObject.isObjectLike)(fieldValidity) || !(0, _isPlainObject.isObjectLike)(actionValidity)) {
+    // can't merge string/boolean validity with keyed validity
+    return actionValidity;
+  }
+
+  return (0, _icepick.merge)(fieldValidity, actionValidity);
+}
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/utils/merge.js":
+/*!**********************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/utils/merge.js ***!
+  \**********************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = mergeDeep;
+
+var _icepick = __webpack_require__(/*! icepick */ "./node_modules/icepick/icepick.js");
+
+var _icepick2 = _interopRequireDefault(_icepick);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function mergeDeep(target, source) {
+  return _icepick2.default.merge(target, source);
+}
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/utils/omit.js":
+/*!*********************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/utils/omit.js ***!
+  \*********************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
+
+exports.default = omit;
+function omit(object, props) {
+  if (object == null) {
+    return {};
+  }
+  var newObject = _extends({}, object);
+
+  if (typeof props === 'string') {
+    delete newObject[props];
+  } else {
+    props.forEach(function (prop) {
+      delete newObject[prop];
+    });
+  }
+
+  return newObject;
+}
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/utils/partition.js":
+/*!**************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/utils/partition.js ***!
+  \**************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = partition;
+function partition(collection, predicate) {
+  var result = [[], []];
+
+  collection.forEach(function (item, index) {
+    if (predicate(item, index, collection)) {
+      result[0].push(item);
+    } else {
+      result[1].push(item);
+    }
+  });
+
+  return result;
+}
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/utils/path-starts-with.js":
+/*!*********************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/utils/path-starts-with.js ***!
+  \*********************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = pathStartsWith;
+exports.pathDifference = pathDifference;
+
+var _lodash = __webpack_require__(/*! lodash.topath */ "./node_modules/lodash.topath/index.js");
+
+var _lodash2 = _interopRequireDefault(_lodash);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function pathStartsWith(pathString, subPathString) {
+  if (pathString === subPathString) return true;
+
+  var path = (0, _lodash2.default)(pathString);
+  var subPath = (0, _lodash2.default)(subPathString);
+
+  var startsWithSubPath = subPath.every(function (segment, index) {
+    return path[index] === segment;
+  });
+
+  return startsWithSubPath;
+}
+
+function pathDifference(pathString, subPathString) {
+  if (pathString === subPathString) return [];
+
+  var path = (0, _lodash2.default)(pathString);
+  var subPath = (0, _lodash2.default)(subPathString);
+
+  var difference = path.reduce(function (acc, segment, index) {
+    if (segment === subPath[index]) return acc;
+
+    acc.push(segment);
+
+    return acc;
+  }, []);
+
+  return difference;
+}
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/utils/persist-event-with-callback.js":
+/*!********************************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/utils/persist-event-with-callback.js ***!
+  \********************************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = persistEventWithCallback;
+function persistEventWithCallback(callback) {
+  return function (event) {
+    for (var _len = arguments.length, args = Array(_len > 1 ? _len - 1 : 0), _key = 1; _key < _len; _key++) {
+      args[_key - 1] = arguments[_key];
+    }
+
+    if (event && event.persist) {
+      event.persist();
+    }
+
+    callback.apply(undefined, [event].concat(args));
+    return event;
+  };
+}
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/utils/pick.js":
+/*!*********************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/utils/pick.js ***!
+  \*********************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = pick;
+function pick(object, props) {
+  var result = {};
+
+  for (var i = 0; i < props.length; i++) {
+    var prop = props[i];
+    result[prop] = object[prop];
+  }
+
+  return result;
+}
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/utils/resolve-model.js":
+/*!******************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/utils/resolve-model.js ***!
+  \******************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+exports.default = wrapWithModelResolver;
+
+var _react = __webpack_require__(/*! react */ "./node_modules/react/index.js");
+
+var _react2 = _interopRequireDefault(_react);
+
+var _propTypes = __webpack_require__(/*! prop-types */ "./node_modules/prop-types/index.js");
+
+var _propTypes2 = _interopRequireDefault(_propTypes);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+function resolveModel(model, parentModel) {
+  if (parentModel) {
+    if (model[0] === '.' || model[0] === '[') {
+      return '' + parentModel + model;
+    }
+
+    if (typeof model === 'function') {
+      return function (state) {
+        return model(state, parentModel);
+      };
+    }
+  }
+
+  return model;
+}
+
+function wrapWithModelResolver(WrappedComponent) {
+  var ResolvedModelWrapper = function (_PureComponent) {
+    _inherits(ResolvedModelWrapper, _PureComponent);
+
+    function ResolvedModelWrapper() {
+      _classCallCheck(this, ResolvedModelWrapper);
+
+      return _possibleConstructorReturn(this, (ResolvedModelWrapper.__proto__ || Object.getPrototypeOf(ResolvedModelWrapper)).apply(this, arguments));
+    }
+
+    _createClass(ResolvedModelWrapper, [{
+      key: 'render',
+      value: function render() {
+        var _context = this.context,
+            parentModel = _context.model,
+            localStore = _context.localStore;
+
+        var resolvedModel = resolveModel(this.props.model, parentModel);
+
+        return _react2.default.createElement(WrappedComponent, _extends({}, this.props, {
+          model: resolvedModel,
+          store: localStore || undefined
+        }));
+      }
+    }]);
+
+    return ResolvedModelWrapper;
+  }(_react.PureComponent);
+
+  ResolvedModelWrapper.displayName = 'Modeled(' + WrappedComponent.displayName + ')';
+
+   true ? ResolvedModelWrapper.propTypes = {
+    model: _propTypes2.default.any
+  } : undefined;
+
+  ResolvedModelWrapper.contextTypes = {
+    model: _propTypes2.default.any,
+    localStore: _propTypes2.default.shape({
+      subscribe: _propTypes2.default.func,
+      dispatch: _propTypes2.default.func,
+      getState: _propTypes2.default.func
+    })
+  };
+
+  return ResolvedModelWrapper;
+}
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/utils/shallow-compare-without-children.js":
+/*!*************************************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/utils/shallow-compare-without-children.js ***!
+  \*************************************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = shallowCompareWithoutChildren;
+
+var _react = __webpack_require__(/*! react */ "./node_modules/react/index.js");
+
+var _shallowEqual = __webpack_require__(/*! ./shallow-equal */ "./node_modules/react-redux-form/lib/utils/shallow-equal.js");
+
+var _shallowEqual2 = _interopRequireDefault(_shallowEqual);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function shallowCompareWithoutChildren(instance, nextProps) {
+  return !(0, _shallowEqual2.default)(instance.props, nextProps, { omitKeys: ['children'] }) || _react.Children.count(instance.props.children) !== _react.Children.count(nextProps.children);
+}
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/utils/shallow-equal.js":
+/*!******************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/utils/shallow-equal.js ***!
+  \******************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _typeof2 = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
+
+/* eslint-disable */
+
+var _typeof = typeof Symbol === "function" && _typeof2(Symbol.iterator) === "symbol" ? function (obj) {
+  return typeof obj === "undefined" ? "undefined" : _typeof2(obj);
+} : function (obj) {
+  return obj && typeof Symbol === "function" && obj.constructor === Symbol ? "symbol" : typeof obj === "undefined" ? "undefined" : _typeof2(obj);
+};
+
+var hasOwnProperty = Object.prototype.hasOwnProperty;
+
+/**
+ * inlined Object.is polyfill to avoid requiring consumers ship their own
+ * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/is
+ */
+function is(x, y) {
+  // SameValue algorithm
+  if (x === y) {
+    // Steps 1-5, 7-10
+    // Steps 6.b-6.e: +0 != -0
+    return x !== 0 || 1 / x === 1 / y;
+  } else {
+    // Step 6.a: NaN == NaN
+    return x !== x && y !== y;
+  }
+}
+
+/**
+ * Performs equality by iterating through keys on an object and returning false
+ * when any key has values which are not strictly equal between the arguments.
+ * Returns true when the values of all keys are strictly equal.
+ */
+function shallowEqual(objA, objB) {
+  var options = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+
+  if (is(objA, objB)) {
+    return true;
+  }
+
+  if ((typeof objA === 'undefined' ? 'undefined' : _typeof(objA)) !== 'object' || objA === null || (typeof objB === 'undefined' ? 'undefined' : _typeof(objB)) !== 'object' || objB === null) {
+    return false;
+  }
+
+  if (objA instanceof Date && objB instanceof Date) {
+    return objA === objB;
+  }
+
+  var keysA = Object.keys(objA);
+  var keysB = Object.keys(objB);
+
+  if (keysA.length !== keysB.length) {
+    return false;
+  }
+
+  var omitKeys = options.omitKeys,
+      deepKeys = options.deepKeys;
+
+  // Test for A's keys different from B.
+
+  for (var i = 0; i < keysA.length; i++) {
+    // if key is an omitted key, skip comparison
+    if (omitKeys && omitKeys.length && ~omitKeys.indexOf(keysA[i])) continue;
+
+    if (deepKeys && deepKeys.length && ~deepKeys.indexOf(keysA[i])) {
+      var result = shallowEqual(objA[keysA[i]], objB[keysA[i]]);
+
+      if (!result) return false;
+    } else if (!hasOwnProperty.call(objB, keysA[i]) || !is(objA[keysA[i]], objB[keysA[i]])) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+exports.default = shallowEqual;
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/utils/to-array.js":
+/*!*************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/utils/to-array.js ***!
+  \*************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = toArray;
+function toArray(object) {
+  var result = [];
+  Object.keys(object).forEach(function (key) {
+    if (object.hasOwnProperty(key)) {
+      result.push(object[key]);
+    }
+  });
+  return result;
+}
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/utils/to-path.js":
+/*!************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/utils/to-path.js ***!
+  \************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = toPath;
+
+var _lodash = __webpack_require__(/*! lodash.topath */ "./node_modules/lodash.topath/index.js");
+
+var _lodash2 = _interopRequireDefault(_lodash);
+
+var _endsWith = __webpack_require__(/*! ./ends-with */ "./node_modules/react-redux-form/lib/utils/ends-with.js");
+
+var _endsWith2 = _interopRequireDefault(_endsWith);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function toPath(value) {
+  var path = value;
+
+  if ((0, _endsWith2.default)(path, '.')) {
+    path = path.slice(0, -1);
+  } else if ((0, _endsWith2.default)(path, '[]')) {
+    path = path.slice(0, -2);
+  }
+
+  return (0, _lodash2.default)(path);
+}
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/utils/track.js":
+/*!**********************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/utils/track.js ***!
+  \**********************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.trackable = exports.createTrack = undefined;
+
+var _findKey2 = __webpack_require__(/*! ../utils/find-key */ "./node_modules/react-redux-form/lib/utils/find-key.js");
+
+var _findKey3 = _interopRequireDefault(_findKey2);
+
+var _get2 = __webpack_require__(/*! ../utils/get */ "./node_modules/react-redux-form/lib/utils/get.js");
+
+var _get3 = _interopRequireDefault(_get2);
+
+var _iteratee = __webpack_require__(/*! ../utils/iteratee */ "./node_modules/react-redux-form/lib/utils/iteratee.js");
+
+var _isMulti = __webpack_require__(/*! ../utils/is-multi */ "./node_modules/react-redux-form/lib/utils/is-multi.js");
+
+var _isMulti2 = _interopRequireDefault(_isMulti);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function _toArray(arr) { return Array.isArray(arr) ? arr : Array.from(arr); }
+
+var defaultStrategy = {
+  findKey: _findKey3.default,
+  get: _get3.default
+};
+
+function createTrack() {
+  var s = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : defaultStrategy;
+
+  var iteratee = (0, _iteratee.createIteratee)(s);
+
+  return function track(model) {
+    for (var _len = arguments.length, predicates = Array(_len > 1 ? _len - 1 : 0), _key = 1; _key < _len; _key++) {
+      predicates[_key - 1] = arguments[_key];
+    }
+
+    var isPartial = model[0] === '.';
+
+    return function (fullState, parentModel) {
+      var childModel = isPartial ? model.slice(1) : model;
+      var state = isPartial ? s.get(fullState, parentModel) : fullState;
+
+      var _childModel$split = childModel.split(/\[\]\.?/),
+          _childModel$split2 = _toArray(_childModel$split),
+          parentModelPath = _childModel$split2[0],
+          childModelPaths = _childModel$split2.slice(1);
+
+      var fullPath = parentModelPath;
+      var subState = s.get(state, fullPath);
+
+      predicates.forEach(function (predicate, i) {
+        var childModelPath = childModelPaths[i];
+        var predicateIteratee = iteratee(predicate);
+
+        var subPath = childModelPath ? s.findKey(subState, predicateIteratee) + '.' + childModelPath : '' + s.findKey(subState, predicateIteratee);
+
+        subState = s.get(subState, subPath);
+        fullPath += '.' + subPath;
+      });
+
+      if ((0, _isMulti2.default)(childModel) && predicates.length < childModelPaths.length) {
+        fullPath += '[]';
+      }
+
+      return isPartial ? parentModel + '.' + fullPath : fullPath;
+    };
+  };
+}
+
+var track = createTrack();
+
+function trackable(actionCreator) {
+  return function (model) {
+    for (var _len2 = arguments.length, args = Array(_len2 > 1 ? _len2 - 1 : 0), _key2 = 1; _key2 < _len2; _key2++) {
+      args[_key2 - 1] = arguments[_key2];
+    }
+
+    if (typeof model === 'function') {
+      return function (dispatch, getState) {
+        var modelPath = model(getState());
+
+        dispatch(actionCreator.apply(undefined, [modelPath].concat(args)));
+      };
+    }
+
+    return actionCreator.apply(undefined, [model].concat(args));
+  };
+}
+
+exports.default = track;
+exports.createTrack = createTrack;
+exports.trackable = trackable;
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/utils/update-field.js":
+/*!*****************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/utils/update-field.js ***!
+  \*****************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _slicedToArray = function () { function sliceIterator(arr, i) { var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"]) _i["return"](); } finally { if (_d) throw _e; } } return _arr; } return function (arr, i) { if (Array.isArray(arr)) { return arr; } else if (Symbol.iterator in Object(arr)) { return sliceIterator(arr, i); } else { throw new TypeError("Invalid attempt to destructure non-iterable instance"); } }; }();
+
+exports.getFieldAndForm = getFieldAndForm;
+exports.default = updateField;
+
+var _icepick = __webpack_require__(/*! icepick */ "./node_modules/icepick/icepick.js");
+
+var _icepick2 = _interopRequireDefault(_icepick);
+
+var _get = __webpack_require__(/*! ./get */ "./node_modules/react-redux-form/lib/utils/get.js");
+
+var _get2 = _interopRequireDefault(_get);
+
+var _mapValues = __webpack_require__(/*! ./map-values */ "./node_modules/react-redux-form/lib/utils/map-values.js");
+
+var _mapValues2 = _interopRequireDefault(_mapValues);
+
+var _formReducer = __webpack_require__(/*! ../reducers/form-reducer */ "./node_modules/react-redux-form/lib/reducers/form-reducer.js");
+
+var _createField = __webpack_require__(/*! ./create-field */ "./node_modules/react-redux-form/lib/utils/create-field.js");
+
+var _assocIn = __webpack_require__(/*! ./assoc-in */ "./node_modules/react-redux-form/lib/utils/assoc-in.js");
+
+var _assocIn2 = _interopRequireDefault(_assocIn);
+
+var _invariant = __webpack_require__(/*! invariant */ "./node_modules/react-redux-form/node_modules/invariant/browser.js");
+
+var _invariant2 = _interopRequireDefault(_invariant);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function _toConsumableArray(arr) { if (Array.isArray(arr)) { for (var i = 0, arr2 = Array(arr.length); i < arr.length; i++) { arr2[i] = arr[i]; } return arr2; } else { return Array.from(arr); } }
+
+function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+function tempInitialState(path) {
+  var initialValue = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : null;
+
+  if (path.length === 1) return _defineProperty({}, path[0], initialValue);
+
+  return _defineProperty({}, path[0], tempInitialState(path.slice(1), initialValue));
+}
+
+function getFieldAndForm(formState, modelPath) {
+  var field = (0, _get2.default)(formState, modelPath);
+  var form = formState;
+
+  (0, _invariant2.default)(form, 'Could not find form for "%s" in the store.', modelPath);
+
+  if (!field) {
+    var initialValue = (0, _get2.default)(formState.$form.initialValue, modelPath);
+
+    form = _icepick2.default.merge((0, _formReducer.createInitialState)(formState.$form.model, tempInitialState(modelPath, initialValue)), formState);
+
+    field = (0, _get2.default)(form, modelPath);
+  }
+
+  return [field, form];
+}
+
+function updateField(state, path, newState, newSubState, updater) {
+  var _getFieldAndForm = getFieldAndForm(state, path),
+      _getFieldAndForm2 = _slicedToArray(_getFieldAndForm, 2),
+      field = _getFieldAndForm2[0],
+      fullState = _getFieldAndForm2[1];
+
+  if (!field) return state;
+
+  var isForm = field.hasOwnProperty('$form');
+  var fieldPath = isForm ? [].concat(_toConsumableArray(path), ['$form']) : path;
+
+  var fieldState = isForm ? field.$form : field;
+
+  var updatedFieldState = typeof newState === 'function' ? newState(fieldState) : newState;
+
+  if (isForm && newSubState) {
+    var formState = (0, _mapValues2.default)(field, function (subState, key) {
+      if (key === '$form') {
+        return (0, _createField.updateFieldState)(fieldState, updatedFieldState);
+      }
+
+      var updatedSubState = typeof newSubState === 'function' ? newSubState(subState, updatedFieldState) : newSubState;
+
+      return (0, _createField.updateFieldState)(subState, updatedSubState);
+    });
+
+    if (!path.length) return formState;
+
+    return (0, _assocIn2.default)(fullState, path, formState, updater);
+  }
+
+  return (0, _assocIn2.default)(fullState, fieldPath, (0, _createField.updateFieldState)(fieldState, updatedFieldState), updater);
+}
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/utils/update-parent-forms.js":
+/*!************************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/utils/update-parent-forms.js ***!
+  \************************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = updateParentForms;
+
+var _icepick = __webpack_require__(/*! icepick */ "./node_modules/icepick/icepick.js");
+
+var _icepick2 = _interopRequireDefault(_icepick);
+
+var _get = __webpack_require__(/*! ./get */ "./node_modules/react-redux-form/lib/utils/get.js");
+
+var _get2 = _interopRequireDefault(_get);
+
+var _assocIn = __webpack_require__(/*! ./assoc-in */ "./node_modules/react-redux-form/lib/utils/assoc-in.js");
+
+var _assocIn2 = _interopRequireDefault(_assocIn);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function _toConsumableArray(arr) { if (Array.isArray(arr)) { for (var i = 0, arr2 = Array(arr.length); i < arr.length; i++) { arr2[i] = arr[i]; } return arr2; } else { return Array.from(arr); } }
+
+// import { updateFieldState } from './create-field';
+
+function updateParentForms(state, localPath, updater) {
+  var parentLocalPath = localPath.slice(0, -1);
+
+  var value = parentLocalPath.length ? (0, _get2.default)(state, parentLocalPath) : state;
+
+  if (!value) return state;
+
+  var form = value.$form;
+
+  var updatedValue = typeof updater === 'function' ? updater(value) : updater;
+
+  // const updatedForm = updateFieldState(form, updatedValue);
+
+  var newState = (0, _assocIn2.default)(state, [].concat(_toConsumableArray(parentLocalPath), ['$form']), _icepick2.default.merge(form, updatedValue));
+
+  if (!parentLocalPath.length) return newState;
+
+  return updateParentForms(newState, parentLocalPath, updater);
+}
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/lib/utils/update-sub-fields.js":
+/*!**********************************************************************!*\
+  !*** ./node_modules/react-redux-form/lib/utils/update-sub-fields.js ***!
+  \**********************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = updateSubFields;
+
+var _get = __webpack_require__(/*! ./get */ "./node_modules/react-redux-form/lib/utils/get.js");
+
+var _get2 = _interopRequireDefault(_get);
+
+var _assocIn = __webpack_require__(/*! ./assoc-in */ "./node_modules/react-redux-form/lib/utils/assoc-in.js");
+
+var _assocIn2 = _interopRequireDefault(_assocIn);
+
+var _createField = __webpack_require__(/*! ./create-field */ "./node_modules/react-redux-form/lib/utils/create-field.js");
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function updateSubField(subField, newSubState) {
+  // Form
+  if (subField && subField.$form) {
+    // intermediate value - not mutated outside function
+    var result = {};
+
+    Object.keys(subField).forEach(function (key) {
+      if (key === '$form') {
+        result.$form = (0, _createField.updateFieldState)(subField.$form, newSubState);
+      } else {
+        result[key] = updateSubField(subField[key], newSubState);
+      }
+    });
+
+    return result;
+  }
+
+  // Field
+  return (0, _createField.updateFieldState)(subField, newSubState);
+}
+
+function updateSubFields(state, localPath, newState) {
+  var field = (0, _get2.default)(state, localPath);
+
+  // only forms can have fields -
+  // skip if field is not a form
+  if (!field || !field.$form) return state;
+
+  // intermediate value - not mutated outside function
+  var updatedField = {};
+
+  Object.keys(field).forEach(function (key) {
+    if (key === '$form') {
+      updatedField.$form = field.$form;
+    } else {
+      updatedField[key] = updateSubField(field[key], newState);
+    }
+  });
+
+  if (!localPath.length) return updatedField;
+
+  return (0, _assocIn2.default)(state, localPath, updatedField);
+}
+
+/***/ }),
+
+/***/ "./node_modules/react-redux-form/node_modules/invariant/browser.js":
+/*!*************************************************************************!*\
+  !*** ./node_modules/react-redux-form/node_modules/invariant/browser.js ***!
+  \*************************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+
+
+/**
+ * Use invariant() to assert state which your program assumes to be true.
+ *
+ * Provide sprintf-style format (only %s is supported) and arguments
+ * to provide information about what broke and what you were
+ * expecting.
+ *
+ * The invariant message will be stripped in production, but the invariant
+ * will remain to ensure logic does not differ in production.
+ */
+
+var invariant = function(condition, format, a, b, c, d, e, f) {
+  if (true) {
+    if (format === undefined) {
+      throw new Error('invariant requires an error message argument');
+    }
+  }
+
+  if (!condition) {
+    var error;
+    if (format === undefined) {
+      error = new Error(
+        'Minified exception occurred; use the non-minified dev environment ' +
+        'for the full error message and additional helpful warnings.'
+      );
+    } else {
+      var args = [a, b, c, d, e, f];
+      var argIndex = 0;
+      error = new Error(
+        format.replace(/%s/g, function() { return args[argIndex++]; })
+      );
+      error.name = 'Invariant Violation';
+    }
+
+    error.framesToPop = 1; // we don't care about invariant's own frame
+    throw error;
+  }
+};
+
+module.exports = invariant;
+
+
+/***/ }),
+
 /***/ "./node_modules/react-redux/es/components/Provider.js":
 /*!************************************************************!*\
   !*** ./node_modules/react-redux/es/components/Provider.js ***!
@@ -44058,353 +49617,6 @@ var classNamesShape = exports.classNamesShape = _propTypes2.default.oneOfType([_
 
 /***/ }),
 
-/***/ "./node_modules/react-validate-form/dist/createValidationRulesFromInput.js":
-/*!*********************************************************************************!*\
-  !*** ./node_modules/react-validate-form/dist/createValidationRulesFromInput.js ***!
-  \*********************************************************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _react = __webpack_require__(/*! react */ "./node_modules/react/index.js");
-
-var _react2 = _interopRequireDefault(_react);
-
-var _validationRules = __webpack_require__(/*! ./validationRules */ "./node_modules/react-validate-form/dist/validationRules.js");
-
-var _validationRules2 = _interopRequireDefault(_validationRules);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-var createValidationRulesFromInput = function createValidationRulesFromInput(Element) {
-  var newValidationRules = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
-
-  if (Element && Element.props && !Element.props.children) {
-    Object.keys(_validationRules2.default).forEach(function (rule) {
-      var value = Element.props[rule] || Element.props.type === rule;
-      if (value) {
-        newValidationRules[Element.props.name] = newValidationRules[Element.props.name] || [];
-        newValidationRules[Element.props.name].push("" + rule + (typeof value !== "boolean" ? ":" + value : ""));
-      }
-    });
-
-    return newValidationRules;
-  }
-
-  if (!Element || !Element.props) {
-    return newValidationRules;
-  }
-
-  _react2.default.Children.forEach(Element.props.children, function (c) {
-    return createValidationRulesFromInput(c, newValidationRules);
-  });
-
-  return newValidationRules;
-};
-
-exports.default = createValidationRulesFromInput;
-
-/***/ }),
-
-/***/ "./node_modules/react-validate-form/dist/index.js":
-/*!********************************************************!*\
-  !*** ./node_modules/react-validate-form/dist/index.js ***!
-  \********************************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _validate = __webpack_require__(/*! ./validate */ "./node_modules/react-validate-form/dist/validate.js");
-
-var _validate2 = _interopRequireDefault(_validate);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-exports.default = _validate2.default;
-
-/***/ }),
-
-/***/ "./node_modules/react-validate-form/dist/regExRules.js":
-/*!*************************************************************!*\
-  !*** ./node_modules/react-validate-form/dist/regExRules.js ***!
-  \*************************************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-var emailRegEx = exports.emailRegEx = /^(([^<>()[\]\\.,;:\s@\"]+(\.[^<>()[\]\\.,;:\s@\"]+)*)|(\".+\"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
-
-exports.default = {
-  emailRegEx: emailRegEx
-};
-
-/***/ }),
-
-/***/ "./node_modules/react-validate-form/dist/validate.js":
-/*!***********************************************************!*\
-  !*** ./node_modules/react-validate-form/dist/validate.js ***!
-  \***********************************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _slicedToArray = function () { function sliceIterator(arr, i) { var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"]) _i["return"](); } finally { if (_d) throw _e; } } return _arr; } return function (arr, i) { if (Array.isArray(arr)) { return arr; } else if (Symbol.iterator in Object(arr)) { return sliceIterator(arr, i); } else { throw new TypeError("Invalid attempt to destructure non-iterable instance"); } }; }();
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _react = __webpack_require__(/*! react */ "./node_modules/react/index.js");
-
-var _react2 = _interopRequireDefault(_react);
-
-var _propTypes = __webpack_require__(/*! prop-types */ "./node_modules/prop-types/index.js");
-
-var _propTypes2 = _interopRequireDefault(_propTypes);
-
-var _merge = __webpack_require__(/*! lodash/merge */ "./node_modules/lodash/merge.js");
-
-var _merge2 = _interopRequireDefault(_merge);
-
-var _union = __webpack_require__(/*! lodash/union */ "./node_modules/lodash/union.js");
-
-var _union2 = _interopRequireDefault(_union);
-
-var _validationRules = __webpack_require__(/*! ./validationRules */ "./node_modules/react-validate-form/dist/validationRules.js");
-
-var _validationRules2 = _interopRequireDefault(_validationRules);
-
-var _createValidationRulesFromInput = __webpack_require__(/*! ./createValidationRulesFromInput */ "./node_modules/react-validate-form/dist/createValidationRulesFromInput.js");
-
-var _createValidationRulesFromInput2 = _interopRequireDefault(_createValidationRulesFromInput);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-var _ = { merge: _merge2.default, union: _union2.default };
-
-var Validate = function (_Component) {
-  _inherits(Validate, _Component);
-
-  _createClass(Validate, null, [{
-    key: "checkErrorCount",
-    value: function checkErrorCount(errorObject) {
-      return Object.keys(errorObject).length && Object.keys(errorObject).reduce(function (acc, curr) {
-        var total = acc += Object.keys(errorObject[curr]).length;
-        return total;
-      }, 0);
-    }
-  }]);
-
-  function Validate(props) {
-    _classCallCheck(this, Validate);
-
-    var _this = _possibleConstructorReturn(this, (Validate.__proto__ || Object.getPrototypeOf(Validate)).call(this, props));
-
-    _this.state = {
-      errorMessages: {},
-      argumentSeperator: ":",
-      allValid: false,
-      errorCount: 0
-    };
-
-    _this.handleValidate = _this.handleValidate.bind(_this);
-    _this.testForValidation = _this.testForValidation.bind(_this);
-    return _this;
-  }
-
-  _createClass(Validate, [{
-    key: "componentWillMount",
-    value: function componentWillMount() {
-      var validations = _.merge({}, (0, _createValidationRulesFromInput2.default)(this.renderChildren()), this.props.validations);
-
-      this.setState({
-        validations: validations
-      });
-    }
-  }, {
-    key: "handleValidate",
-    value: function handleValidate(e) {
-      var fieldName = "";
-      var fieldValue = "";
-
-      if (e.target) {
-        fieldName = e.target.name;
-        fieldValue = e.target.value;
-      } else {
-        fieldName = e.name;
-        fieldValue = e.value;
-      }
-
-      var fieldErrorMessages = this.testForValidation(fieldName, fieldValue);
-      var allErrors = Object.assign({}, this.state.errorMessages, _defineProperty({}, fieldName, fieldErrorMessages));
-
-      var errorCount = Validate.checkErrorCount(allErrors);
-
-      this.setState({
-        errorMessages: allErrors,
-        errorCount: errorCount,
-        allValid: errorCount === 0
-      });
-    }
-  }, {
-    key: "ruleHasArgument",
-    value: function ruleHasArgument(rule) {
-      return rule.indexOf(this.state.argumentSeperator) >= 0;
-    }
-  }, {
-    key: "testForValidation",
-    value: function testForValidation(field, value) {
-      var _this2 = this;
-
-      var fieldRequirements = this.state.validations[field];
-
-      // combine both the built in rules and custom rules
-      var combinedValidationRules = _.merge({}, _validationRules2.default, this.props.rules);
-
-      return fieldRequirements && fieldRequirements.map(function (rule) {
-        if (_this2.ruleHasArgument(rule)) {
-          var _rule$split = rule.split(_this2.state.argumentSeperator),
-              _rule$split2 = _slicedToArray(_rule$split, 2),
-              funcName = _rule$split2[0],
-              arg = _rule$split2[1];
-
-          return combinedValidationRules[funcName] && !combinedValidationRules[funcName].test(arg)(value) && combinedValidationRules[funcName].message(arg)(field, value);
-        }
-        return combinedValidationRules[rule] && !combinedValidationRules[rule].test(value) && combinedValidationRules[rule].message(field, value);
-      }).filter(function (val) {
-        return val;
-      });
-    }
-  }, {
-    key: "renderChildren",
-    value: function renderChildren() {
-      return this.props.children({
-        validate: this.handleValidate,
-        errorMessages: this.state.errorMessages,
-        allValid: this.state.allValid,
-        errorCount: this.state.errorCount
-      });
-    }
-  }, {
-    key: "render",
-    value: function render() {
-      return this.renderChildren();
-    }
-  }]);
-
-  return Validate;
-}(_react.Component);
-
-Validate.propTypes = {
-  children: _propTypes2.default.func.isRequired,
-  validations: _propTypes2.default.objectOf(_propTypes2.default.array),
-  rules: _propTypes2.default.shape({
-    test: _propTypes2.default.func,
-    message: _propTypes2.default.func
-  })
-};
-
-Validate.defaultProps = {
-  validations: {},
-  rules: {}
-};
-
-exports.default = Validate;
-
-/***/ }),
-
-/***/ "./node_modules/react-validate-form/dist/validationRules.js":
-/*!******************************************************************!*\
-  !*** ./node_modules/react-validate-form/dist/validationRules.js ***!
-  \******************************************************************/
-/*! no static exports found */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _regExRules = __webpack_require__(/*! ./regExRules */ "./node_modules/react-validate-form/dist/regExRules.js");
-
-var validationRules = {
-  required: {
-    test: function test(val) {
-      return val.length > 0;
-    },
-    message: function message(name) {
-      return name + " is required.";
-    }
-  },
-  email: {
-    test: function test(val) {
-      return _regExRules.emailRegEx.test(val);
-    },
-    message: function message(name) {
-      return name + " must be a valid email.";
-    }
-  },
-  min: {
-    test: function test(arg) {
-      return function (val) {
-        return val.length >= arg;
-      };
-    },
-    message: function message(arg) {
-      return function (name) {
-        return name + " must be at least " + arg + " characters.";
-      };
-    }
-  },
-  max: {
-    test: function test(arg) {
-      return function (val) {
-        return val.length <= arg;
-      };
-    },
-    message: function message(arg) {
-      return function (name) {
-        return name + " must be less than " + arg + " characters.";
-      };
-    }
-  }
-};
-
-exports.default = validationRules;
-
-/***/ }),
-
 /***/ "./node_modules/react/cjs/react.development.js":
 /*!*****************************************************!*\
   !*** ./node_modules/react/cjs/react.development.js ***!
@@ -47846,6 +53058,31 @@ function resolvePathname(to) {
 
 /***/ }),
 
+/***/ "./node_modules/shallow-compare/es/index.js":
+/*!**************************************************!*\
+  !*** ./node_modules/shallow-compare/es/index.js ***!
+  \**************************************************/
+/*! exports provided: default */
+/***/ (function(module, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+// Pulled from react-compat
+// https://github.com/developit/preact-compat/blob/7c5de00e7c85e2ffd011bf3af02899b63f699d3a/src/index.js#L349
+function shallowDiffers(a, b) {
+  for (var i in a) {
+    if (!(i in b)) return true;
+  }for (var _i in b) {
+    if (a[_i] !== b[_i]) return true;
+  }return false;
+}
+
+/* harmony default export */ __webpack_exports__["default"] = (function (instance, nextProps, nextState) {
+  return shallowDiffers(instance.props, nextProps) || shallowDiffers(instance.state, nextState);
+});
+
+/***/ }),
+
 /***/ "./node_modules/style-loader/lib/addStyles.js":
 /*!****************************************************!*\
   !*** ./node_modules/style-loader/lib/addStyles.js ***!
@@ -48415,6 +53652,3690 @@ function symbolObservablePonyfill(root) {
 
 	return result;
 };
+
+/***/ }),
+
+/***/ "./node_modules/validator/index.js":
+/*!*****************************************!*\
+  !*** ./node_modules/validator/index.js ***!
+  \*****************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _toDate = __webpack_require__(/*! ./lib/toDate */ "./node_modules/validator/lib/toDate.js");
+
+var _toDate2 = _interopRequireDefault(_toDate);
+
+var _toFloat = __webpack_require__(/*! ./lib/toFloat */ "./node_modules/validator/lib/toFloat.js");
+
+var _toFloat2 = _interopRequireDefault(_toFloat);
+
+var _toInt = __webpack_require__(/*! ./lib/toInt */ "./node_modules/validator/lib/toInt.js");
+
+var _toInt2 = _interopRequireDefault(_toInt);
+
+var _toBoolean = __webpack_require__(/*! ./lib/toBoolean */ "./node_modules/validator/lib/toBoolean.js");
+
+var _toBoolean2 = _interopRequireDefault(_toBoolean);
+
+var _equals = __webpack_require__(/*! ./lib/equals */ "./node_modules/validator/lib/equals.js");
+
+var _equals2 = _interopRequireDefault(_equals);
+
+var _contains = __webpack_require__(/*! ./lib/contains */ "./node_modules/validator/lib/contains.js");
+
+var _contains2 = _interopRequireDefault(_contains);
+
+var _matches = __webpack_require__(/*! ./lib/matches */ "./node_modules/validator/lib/matches.js");
+
+var _matches2 = _interopRequireDefault(_matches);
+
+var _isEmail = __webpack_require__(/*! ./lib/isEmail */ "./node_modules/validator/lib/isEmail.js");
+
+var _isEmail2 = _interopRequireDefault(_isEmail);
+
+var _isURL = __webpack_require__(/*! ./lib/isURL */ "./node_modules/validator/lib/isURL.js");
+
+var _isURL2 = _interopRequireDefault(_isURL);
+
+var _isMACAddress = __webpack_require__(/*! ./lib/isMACAddress */ "./node_modules/validator/lib/isMACAddress.js");
+
+var _isMACAddress2 = _interopRequireDefault(_isMACAddress);
+
+var _isIP = __webpack_require__(/*! ./lib/isIP */ "./node_modules/validator/lib/isIP.js");
+
+var _isIP2 = _interopRequireDefault(_isIP);
+
+var _isFQDN = __webpack_require__(/*! ./lib/isFQDN */ "./node_modules/validator/lib/isFQDN.js");
+
+var _isFQDN2 = _interopRequireDefault(_isFQDN);
+
+var _isBoolean = __webpack_require__(/*! ./lib/isBoolean */ "./node_modules/validator/lib/isBoolean.js");
+
+var _isBoolean2 = _interopRequireDefault(_isBoolean);
+
+var _isAlpha = __webpack_require__(/*! ./lib/isAlpha */ "./node_modules/validator/lib/isAlpha.js");
+
+var _isAlpha2 = _interopRequireDefault(_isAlpha);
+
+var _isAlphanumeric = __webpack_require__(/*! ./lib/isAlphanumeric */ "./node_modules/validator/lib/isAlphanumeric.js");
+
+var _isAlphanumeric2 = _interopRequireDefault(_isAlphanumeric);
+
+var _isNumeric = __webpack_require__(/*! ./lib/isNumeric */ "./node_modules/validator/lib/isNumeric.js");
+
+var _isNumeric2 = _interopRequireDefault(_isNumeric);
+
+var _isPort = __webpack_require__(/*! ./lib/isPort */ "./node_modules/validator/lib/isPort.js");
+
+var _isPort2 = _interopRequireDefault(_isPort);
+
+var _isLowercase = __webpack_require__(/*! ./lib/isLowercase */ "./node_modules/validator/lib/isLowercase.js");
+
+var _isLowercase2 = _interopRequireDefault(_isLowercase);
+
+var _isUppercase = __webpack_require__(/*! ./lib/isUppercase */ "./node_modules/validator/lib/isUppercase.js");
+
+var _isUppercase2 = _interopRequireDefault(_isUppercase);
+
+var _isAscii = __webpack_require__(/*! ./lib/isAscii */ "./node_modules/validator/lib/isAscii.js");
+
+var _isAscii2 = _interopRequireDefault(_isAscii);
+
+var _isFullWidth = __webpack_require__(/*! ./lib/isFullWidth */ "./node_modules/validator/lib/isFullWidth.js");
+
+var _isFullWidth2 = _interopRequireDefault(_isFullWidth);
+
+var _isHalfWidth = __webpack_require__(/*! ./lib/isHalfWidth */ "./node_modules/validator/lib/isHalfWidth.js");
+
+var _isHalfWidth2 = _interopRequireDefault(_isHalfWidth);
+
+var _isVariableWidth = __webpack_require__(/*! ./lib/isVariableWidth */ "./node_modules/validator/lib/isVariableWidth.js");
+
+var _isVariableWidth2 = _interopRequireDefault(_isVariableWidth);
+
+var _isMultibyte = __webpack_require__(/*! ./lib/isMultibyte */ "./node_modules/validator/lib/isMultibyte.js");
+
+var _isMultibyte2 = _interopRequireDefault(_isMultibyte);
+
+var _isSurrogatePair = __webpack_require__(/*! ./lib/isSurrogatePair */ "./node_modules/validator/lib/isSurrogatePair.js");
+
+var _isSurrogatePair2 = _interopRequireDefault(_isSurrogatePair);
+
+var _isInt = __webpack_require__(/*! ./lib/isInt */ "./node_modules/validator/lib/isInt.js");
+
+var _isInt2 = _interopRequireDefault(_isInt);
+
+var _isFloat = __webpack_require__(/*! ./lib/isFloat */ "./node_modules/validator/lib/isFloat.js");
+
+var _isFloat2 = _interopRequireDefault(_isFloat);
+
+var _isDecimal = __webpack_require__(/*! ./lib/isDecimal */ "./node_modules/validator/lib/isDecimal.js");
+
+var _isDecimal2 = _interopRequireDefault(_isDecimal);
+
+var _isHexadecimal = __webpack_require__(/*! ./lib/isHexadecimal */ "./node_modules/validator/lib/isHexadecimal.js");
+
+var _isHexadecimal2 = _interopRequireDefault(_isHexadecimal);
+
+var _isDivisibleBy = __webpack_require__(/*! ./lib/isDivisibleBy */ "./node_modules/validator/lib/isDivisibleBy.js");
+
+var _isDivisibleBy2 = _interopRequireDefault(_isDivisibleBy);
+
+var _isHexColor = __webpack_require__(/*! ./lib/isHexColor */ "./node_modules/validator/lib/isHexColor.js");
+
+var _isHexColor2 = _interopRequireDefault(_isHexColor);
+
+var _isISRC = __webpack_require__(/*! ./lib/isISRC */ "./node_modules/validator/lib/isISRC.js");
+
+var _isISRC2 = _interopRequireDefault(_isISRC);
+
+var _isMD = __webpack_require__(/*! ./lib/isMD5 */ "./node_modules/validator/lib/isMD5.js");
+
+var _isMD2 = _interopRequireDefault(_isMD);
+
+var _isHash = __webpack_require__(/*! ./lib/isHash */ "./node_modules/validator/lib/isHash.js");
+
+var _isHash2 = _interopRequireDefault(_isHash);
+
+var _isJSON = __webpack_require__(/*! ./lib/isJSON */ "./node_modules/validator/lib/isJSON.js");
+
+var _isJSON2 = _interopRequireDefault(_isJSON);
+
+var _isEmpty = __webpack_require__(/*! ./lib/isEmpty */ "./node_modules/validator/lib/isEmpty.js");
+
+var _isEmpty2 = _interopRequireDefault(_isEmpty);
+
+var _isLength = __webpack_require__(/*! ./lib/isLength */ "./node_modules/validator/lib/isLength.js");
+
+var _isLength2 = _interopRequireDefault(_isLength);
+
+var _isByteLength = __webpack_require__(/*! ./lib/isByteLength */ "./node_modules/validator/lib/isByteLength.js");
+
+var _isByteLength2 = _interopRequireDefault(_isByteLength);
+
+var _isUUID = __webpack_require__(/*! ./lib/isUUID */ "./node_modules/validator/lib/isUUID.js");
+
+var _isUUID2 = _interopRequireDefault(_isUUID);
+
+var _isMongoId = __webpack_require__(/*! ./lib/isMongoId */ "./node_modules/validator/lib/isMongoId.js");
+
+var _isMongoId2 = _interopRequireDefault(_isMongoId);
+
+var _isAfter = __webpack_require__(/*! ./lib/isAfter */ "./node_modules/validator/lib/isAfter.js");
+
+var _isAfter2 = _interopRequireDefault(_isAfter);
+
+var _isBefore = __webpack_require__(/*! ./lib/isBefore */ "./node_modules/validator/lib/isBefore.js");
+
+var _isBefore2 = _interopRequireDefault(_isBefore);
+
+var _isIn = __webpack_require__(/*! ./lib/isIn */ "./node_modules/validator/lib/isIn.js");
+
+var _isIn2 = _interopRequireDefault(_isIn);
+
+var _isCreditCard = __webpack_require__(/*! ./lib/isCreditCard */ "./node_modules/validator/lib/isCreditCard.js");
+
+var _isCreditCard2 = _interopRequireDefault(_isCreditCard);
+
+var _isISIN = __webpack_require__(/*! ./lib/isISIN */ "./node_modules/validator/lib/isISIN.js");
+
+var _isISIN2 = _interopRequireDefault(_isISIN);
+
+var _isISBN = __webpack_require__(/*! ./lib/isISBN */ "./node_modules/validator/lib/isISBN.js");
+
+var _isISBN2 = _interopRequireDefault(_isISBN);
+
+var _isISSN = __webpack_require__(/*! ./lib/isISSN */ "./node_modules/validator/lib/isISSN.js");
+
+var _isISSN2 = _interopRequireDefault(_isISSN);
+
+var _isMobilePhone = __webpack_require__(/*! ./lib/isMobilePhone */ "./node_modules/validator/lib/isMobilePhone.js");
+
+var _isMobilePhone2 = _interopRequireDefault(_isMobilePhone);
+
+var _isCurrency = __webpack_require__(/*! ./lib/isCurrency */ "./node_modules/validator/lib/isCurrency.js");
+
+var _isCurrency2 = _interopRequireDefault(_isCurrency);
+
+var _isISO = __webpack_require__(/*! ./lib/isISO8601 */ "./node_modules/validator/lib/isISO8601.js");
+
+var _isISO2 = _interopRequireDefault(_isISO);
+
+var _isRFC = __webpack_require__(/*! ./lib/isRFC3339 */ "./node_modules/validator/lib/isRFC3339.js");
+
+var _isRFC2 = _interopRequireDefault(_isRFC);
+
+var _isISO31661Alpha = __webpack_require__(/*! ./lib/isISO31661Alpha2 */ "./node_modules/validator/lib/isISO31661Alpha2.js");
+
+var _isISO31661Alpha2 = _interopRequireDefault(_isISO31661Alpha);
+
+var _isISO31661Alpha3 = __webpack_require__(/*! ./lib/isISO31661Alpha3 */ "./node_modules/validator/lib/isISO31661Alpha3.js");
+
+var _isISO31661Alpha4 = _interopRequireDefault(_isISO31661Alpha3);
+
+var _isBase = __webpack_require__(/*! ./lib/isBase64 */ "./node_modules/validator/lib/isBase64.js");
+
+var _isBase2 = _interopRequireDefault(_isBase);
+
+var _isDataURI = __webpack_require__(/*! ./lib/isDataURI */ "./node_modules/validator/lib/isDataURI.js");
+
+var _isDataURI2 = _interopRequireDefault(_isDataURI);
+
+var _isMimeType = __webpack_require__(/*! ./lib/isMimeType */ "./node_modules/validator/lib/isMimeType.js");
+
+var _isMimeType2 = _interopRequireDefault(_isMimeType);
+
+var _isLatLong = __webpack_require__(/*! ./lib/isLatLong */ "./node_modules/validator/lib/isLatLong.js");
+
+var _isLatLong2 = _interopRequireDefault(_isLatLong);
+
+var _isPostalCode = __webpack_require__(/*! ./lib/isPostalCode */ "./node_modules/validator/lib/isPostalCode.js");
+
+var _isPostalCode2 = _interopRequireDefault(_isPostalCode);
+
+var _ltrim = __webpack_require__(/*! ./lib/ltrim */ "./node_modules/validator/lib/ltrim.js");
+
+var _ltrim2 = _interopRequireDefault(_ltrim);
+
+var _rtrim = __webpack_require__(/*! ./lib/rtrim */ "./node_modules/validator/lib/rtrim.js");
+
+var _rtrim2 = _interopRequireDefault(_rtrim);
+
+var _trim = __webpack_require__(/*! ./lib/trim */ "./node_modules/validator/lib/trim.js");
+
+var _trim2 = _interopRequireDefault(_trim);
+
+var _escape = __webpack_require__(/*! ./lib/escape */ "./node_modules/validator/lib/escape.js");
+
+var _escape2 = _interopRequireDefault(_escape);
+
+var _unescape = __webpack_require__(/*! ./lib/unescape */ "./node_modules/validator/lib/unescape.js");
+
+var _unescape2 = _interopRequireDefault(_unescape);
+
+var _stripLow = __webpack_require__(/*! ./lib/stripLow */ "./node_modules/validator/lib/stripLow.js");
+
+var _stripLow2 = _interopRequireDefault(_stripLow);
+
+var _whitelist = __webpack_require__(/*! ./lib/whitelist */ "./node_modules/validator/lib/whitelist.js");
+
+var _whitelist2 = _interopRequireDefault(_whitelist);
+
+var _blacklist = __webpack_require__(/*! ./lib/blacklist */ "./node_modules/validator/lib/blacklist.js");
+
+var _blacklist2 = _interopRequireDefault(_blacklist);
+
+var _isWhitelisted = __webpack_require__(/*! ./lib/isWhitelisted */ "./node_modules/validator/lib/isWhitelisted.js");
+
+var _isWhitelisted2 = _interopRequireDefault(_isWhitelisted);
+
+var _normalizeEmail = __webpack_require__(/*! ./lib/normalizeEmail */ "./node_modules/validator/lib/normalizeEmail.js");
+
+var _normalizeEmail2 = _interopRequireDefault(_normalizeEmail);
+
+var _toString = __webpack_require__(/*! ./lib/util/toString */ "./node_modules/validator/lib/util/toString.js");
+
+var _toString2 = _interopRequireDefault(_toString);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+var version = '10.1.0';
+
+var validator = {
+  version: version,
+  toDate: _toDate2.default,
+  toFloat: _toFloat2.default,
+  toInt: _toInt2.default,
+  toBoolean: _toBoolean2.default,
+  equals: _equals2.default,
+  contains: _contains2.default,
+  matches: _matches2.default,
+  isEmail: _isEmail2.default,
+  isURL: _isURL2.default,
+  isMACAddress: _isMACAddress2.default,
+  isIP: _isIP2.default,
+  isFQDN: _isFQDN2.default,
+  isBoolean: _isBoolean2.default,
+  isAlpha: _isAlpha2.default,
+  isAlphanumeric: _isAlphanumeric2.default,
+  isNumeric: _isNumeric2.default,
+  isPort: _isPort2.default,
+  isLowercase: _isLowercase2.default,
+  isUppercase: _isUppercase2.default,
+  isAscii: _isAscii2.default,
+  isFullWidth: _isFullWidth2.default,
+  isHalfWidth: _isHalfWidth2.default,
+  isVariableWidth: _isVariableWidth2.default,
+  isMultibyte: _isMultibyte2.default,
+  isSurrogatePair: _isSurrogatePair2.default,
+  isInt: _isInt2.default,
+  isFloat: _isFloat2.default,
+  isDecimal: _isDecimal2.default,
+  isHexadecimal: _isHexadecimal2.default,
+  isDivisibleBy: _isDivisibleBy2.default,
+  isHexColor: _isHexColor2.default,
+  isISRC: _isISRC2.default,
+  isMD5: _isMD2.default,
+  isHash: _isHash2.default,
+  isJSON: _isJSON2.default,
+  isEmpty: _isEmpty2.default,
+  isLength: _isLength2.default,
+  isByteLength: _isByteLength2.default,
+  isUUID: _isUUID2.default,
+  isMongoId: _isMongoId2.default,
+  isAfter: _isAfter2.default,
+  isBefore: _isBefore2.default,
+  isIn: _isIn2.default,
+  isCreditCard: _isCreditCard2.default,
+  isISIN: _isISIN2.default,
+  isISBN: _isISBN2.default,
+  isISSN: _isISSN2.default,
+  isMobilePhone: _isMobilePhone2.default,
+  isPostalCode: _isPostalCode2.default,
+  isCurrency: _isCurrency2.default,
+  isISO8601: _isISO2.default,
+  isRFC3339: _isRFC2.default,
+  isISO31661Alpha2: _isISO31661Alpha2.default,
+  isISO31661Alpha3: _isISO31661Alpha4.default,
+  isBase64: _isBase2.default,
+  isDataURI: _isDataURI2.default,
+  isMimeType: _isMimeType2.default,
+  isLatLong: _isLatLong2.default,
+  ltrim: _ltrim2.default,
+  rtrim: _rtrim2.default,
+  trim: _trim2.default,
+  escape: _escape2.default,
+  unescape: _unescape2.default,
+  stripLow: _stripLow2.default,
+  whitelist: _whitelist2.default,
+  blacklist: _blacklist2.default,
+  isWhitelisted: _isWhitelisted2.default,
+  normalizeEmail: _normalizeEmail2.default,
+  toString: _toString2.default
+};
+
+exports.default = validator;
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/alpha.js":
+/*!*********************************************!*\
+  !*** ./node_modules/validator/lib/alpha.js ***!
+  \*********************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+var alpha = exports.alpha = {
+  'en-US': /^[A-Z]+$/i,
+  'bg-BG': /^[А-Я]+$/i,
+  'cs-CZ': /^[A-ZÁČĎÉĚÍŇÓŘŠŤÚŮÝŽ]+$/i,
+  'da-DK': /^[A-ZÆØÅ]+$/i,
+  'de-DE': /^[A-ZÄÖÜß]+$/i,
+  'el-GR': /^[Α-ω]+$/i,
+  'es-ES': /^[A-ZÁÉÍÑÓÚÜ]+$/i,
+  'fr-FR': /^[A-ZÀÂÆÇÉÈÊËÏÎÔŒÙÛÜŸ]+$/i,
+  'it-IT': /^[A-ZÀÉÈÌÎÓÒÙ]+$/i,
+  'nb-NO': /^[A-ZÆØÅ]+$/i,
+  'nl-NL': /^[A-ZÁÉËÏÓÖÜÚ]+$/i,
+  'nn-NO': /^[A-ZÆØÅ]+$/i,
+  'hu-HU': /^[A-ZÁÉÍÓÖŐÚÜŰ]+$/i,
+  'pl-PL': /^[A-ZĄĆĘŚŁŃÓŻŹ]+$/i,
+  'pt-PT': /^[A-ZÃÁÀÂÇÉÊÍÕÓÔÚÜ]+$/i,
+  'ru-RU': /^[А-ЯЁ]+$/i,
+  'sk-SK': /^[A-ZÁČĎÉÍŇÓŠŤÚÝŽĹŔĽÄÔ]+$/i,
+  'sr-RS@latin': /^[A-ZČĆŽŠĐ]+$/i,
+  'sr-RS': /^[А-ЯЂЈЉЊЋЏ]+$/i,
+  'sv-SE': /^[A-ZÅÄÖ]+$/i,
+  'tr-TR': /^[A-ZÇĞİıÖŞÜ]+$/i,
+  'uk-UA': /^[А-ЩЬЮЯЄIЇҐі]+$/i,
+  ar: /^[ءآأؤإئابةتثجحخدذرزسشصضطظعغفقكلمنهوىيًٌٍَُِّْٰ]+$/
+};
+
+var alphanumeric = exports.alphanumeric = {
+  'en-US': /^[0-9A-Z]+$/i,
+  'bg-BG': /^[0-9А-Я]+$/i,
+  'cs-CZ': /^[0-9A-ZÁČĎÉĚÍŇÓŘŠŤÚŮÝŽ]+$/i,
+  'da-DK': /^[0-9A-ZÆØÅ]+$/i,
+  'de-DE': /^[0-9A-ZÄÖÜß]+$/i,
+  'el-GR': /^[0-9Α-ω]+$/i,
+  'es-ES': /^[0-9A-ZÁÉÍÑÓÚÜ]+$/i,
+  'fr-FR': /^[0-9A-ZÀÂÆÇÉÈÊËÏÎÔŒÙÛÜŸ]+$/i,
+  'it-IT': /^[0-9A-ZÀÉÈÌÎÓÒÙ]+$/i,
+  'hu-HU': /^[0-9A-ZÁÉÍÓÖŐÚÜŰ]+$/i,
+  'nb-NO': /^[0-9A-ZÆØÅ]+$/i,
+  'nl-NL': /^[0-9A-ZÁÉËÏÓÖÜÚ]+$/i,
+  'nn-NO': /^[0-9A-ZÆØÅ]+$/i,
+  'pl-PL': /^[0-9A-ZĄĆĘŚŁŃÓŻŹ]+$/i,
+  'pt-PT': /^[0-9A-ZÃÁÀÂÇÉÊÍÕÓÔÚÜ]+$/i,
+  'ru-RU': /^[0-9А-ЯЁ]+$/i,
+  'sk-SK': /^[0-9A-ZÁČĎÉÍŇÓŠŤÚÝŽĹŔĽÄÔ]+$/i,
+  'sr-RS@latin': /^[0-9A-ZČĆŽŠĐ]+$/i,
+  'sr-RS': /^[0-9А-ЯЂЈЉЊЋЏ]+$/i,
+  'sv-SE': /^[0-9A-ZÅÄÖ]+$/i,
+  'tr-TR': /^[0-9A-ZÇĞİıÖŞÜ]+$/i,
+  'uk-UA': /^[0-9А-ЩЬЮЯЄIЇҐі]+$/i,
+  ar: /^[٠١٢٣٤٥٦٧٨٩0-9ءآأؤإئابةتثجحخدذرزسشصضطظعغفقكلمنهوىيًٌٍَُِّْٰ]+$/
+};
+
+var decimal = exports.decimal = {
+  'en-US': '.',
+  ar: '٫'
+};
+
+var englishLocales = exports.englishLocales = ['AU', 'GB', 'HK', 'IN', 'NZ', 'ZA', 'ZM'];
+
+for (var locale, i = 0; i < englishLocales.length; i++) {
+  locale = 'en-' + englishLocales[i];
+  alpha[locale] = alpha['en-US'];
+  alphanumeric[locale] = alphanumeric['en-US'];
+  decimal[locale] = decimal['en-US'];
+}
+
+// Source: http://www.localeplanet.com/java/
+var arabicLocales = exports.arabicLocales = ['AE', 'BH', 'DZ', 'EG', 'IQ', 'JO', 'KW', 'LB', 'LY', 'MA', 'QM', 'QA', 'SA', 'SD', 'SY', 'TN', 'YE'];
+
+for (var _locale, _i = 0; _i < arabicLocales.length; _i++) {
+  _locale = 'ar-' + arabicLocales[_i];
+  alpha[_locale] = alpha.ar;
+  alphanumeric[_locale] = alphanumeric.ar;
+  decimal[_locale] = decimal.ar;
+}
+
+// Source: https://en.wikipedia.org/wiki/Decimal_mark
+var dotDecimal = exports.dotDecimal = [];
+var commaDecimal = exports.commaDecimal = ['bg-BG', 'cs-CZ', 'da-DK', 'de-DE', 'el-GR', 'es-ES', 'fr-FR', 'it-IT', 'hu-HU', 'nb-NO', 'nn-NO', 'nl-NL', 'pl-Pl', 'pt-PT', 'ru-RU', 'sr-RS@latin', 'sr-RS', 'sv-SE', 'tr-TR', 'uk-UA'];
+
+for (var _i2 = 0; _i2 < dotDecimal.length; _i2++) {
+  decimal[dotDecimal[_i2]] = decimal['en-US'];
+}
+
+for (var _i3 = 0; _i3 < commaDecimal.length; _i3++) {
+  decimal[commaDecimal[_i3]] = ',';
+}
+
+alpha['pt-BR'] = alpha['pt-PT'];
+alphanumeric['pt-BR'] = alphanumeric['pt-PT'];
+decimal['pt-BR'] = decimal['pt-PT'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/blacklist.js":
+/*!*************************************************!*\
+  !*** ./node_modules/validator/lib/blacklist.js ***!
+  \*************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = blacklist;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function blacklist(str, chars) {
+  (0, _assertString2.default)(str);
+  return str.replace(new RegExp('[' + chars + ']+', 'g'), '');
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/contains.js":
+/*!************************************************!*\
+  !*** ./node_modules/validator/lib/contains.js ***!
+  \************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = contains;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+var _toString = __webpack_require__(/*! ./util/toString */ "./node_modules/validator/lib/util/toString.js");
+
+var _toString2 = _interopRequireDefault(_toString);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function contains(str, elem) {
+  (0, _assertString2.default)(str);
+  return str.indexOf((0, _toString2.default)(elem)) >= 0;
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/equals.js":
+/*!**********************************************!*\
+  !*** ./node_modules/validator/lib/equals.js ***!
+  \**********************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = equals;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function equals(str, comparison) {
+  (0, _assertString2.default)(str);
+  return str === comparison;
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/escape.js":
+/*!**********************************************!*\
+  !*** ./node_modules/validator/lib/escape.js ***!
+  \**********************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = escape;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function escape(str) {
+  (0, _assertString2.default)(str);
+  return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#x27;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\//g, '&#x2F;').replace(/\\/g, '&#x5C;').replace(/`/g, '&#96;');
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/isAfter.js":
+/*!***********************************************!*\
+  !*** ./node_modules/validator/lib/isAfter.js ***!
+  \***********************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = isAfter;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+var _toDate = __webpack_require__(/*! ./toDate */ "./node_modules/validator/lib/toDate.js");
+
+var _toDate2 = _interopRequireDefault(_toDate);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function isAfter(str) {
+  var date = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : String(new Date());
+
+  (0, _assertString2.default)(str);
+  var comparison = (0, _toDate2.default)(date);
+  var original = (0, _toDate2.default)(str);
+  return !!(original && comparison && original > comparison);
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/isAlpha.js":
+/*!***********************************************!*\
+  !*** ./node_modules/validator/lib/isAlpha.js ***!
+  \***********************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = isAlpha;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+var _alpha = __webpack_require__(/*! ./alpha */ "./node_modules/validator/lib/alpha.js");
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function isAlpha(str) {
+  var locale = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 'en-US';
+
+  (0, _assertString2.default)(str);
+  if (locale in _alpha.alpha) {
+    return _alpha.alpha[locale].test(str);
+  }
+  throw new Error('Invalid locale \'' + locale + '\'');
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/isAlphanumeric.js":
+/*!******************************************************!*\
+  !*** ./node_modules/validator/lib/isAlphanumeric.js ***!
+  \******************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = isAlphanumeric;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+var _alpha = __webpack_require__(/*! ./alpha */ "./node_modules/validator/lib/alpha.js");
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function isAlphanumeric(str) {
+  var locale = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 'en-US';
+
+  (0, _assertString2.default)(str);
+  if (locale in _alpha.alphanumeric) {
+    return _alpha.alphanumeric[locale].test(str);
+  }
+  throw new Error('Invalid locale \'' + locale + '\'');
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/isAscii.js":
+/*!***********************************************!*\
+  !*** ./node_modules/validator/lib/isAscii.js ***!
+  \***********************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = isAscii;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+/* eslint-disable no-control-regex */
+var ascii = /^[\x00-\x7F]+$/;
+/* eslint-enable no-control-regex */
+
+function isAscii(str) {
+  (0, _assertString2.default)(str);
+  return ascii.test(str);
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/isBase64.js":
+/*!************************************************!*\
+  !*** ./node_modules/validator/lib/isBase64.js ***!
+  \************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = isBase64;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+var notBase64 = /[^A-Z0-9+\/=]/i;
+
+function isBase64(str) {
+  (0, _assertString2.default)(str);
+  var len = str.length;
+  if (!len || len % 4 !== 0 || notBase64.test(str)) {
+    return false;
+  }
+  var firstPaddingChar = str.indexOf('=');
+  return firstPaddingChar === -1 || firstPaddingChar === len - 1 || firstPaddingChar === len - 2 && str[len - 1] === '=';
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/isBefore.js":
+/*!************************************************!*\
+  !*** ./node_modules/validator/lib/isBefore.js ***!
+  \************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = isBefore;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+var _toDate = __webpack_require__(/*! ./toDate */ "./node_modules/validator/lib/toDate.js");
+
+var _toDate2 = _interopRequireDefault(_toDate);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function isBefore(str) {
+  var date = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : String(new Date());
+
+  (0, _assertString2.default)(str);
+  var comparison = (0, _toDate2.default)(date);
+  var original = (0, _toDate2.default)(str);
+  return !!(original && comparison && original < comparison);
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/isBoolean.js":
+/*!*************************************************!*\
+  !*** ./node_modules/validator/lib/isBoolean.js ***!
+  \*************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = isBoolean;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function isBoolean(str) {
+  (0, _assertString2.default)(str);
+  return ['true', 'false', '1', '0'].indexOf(str) >= 0;
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/isByteLength.js":
+/*!****************************************************!*\
+  !*** ./node_modules/validator/lib/isByteLength.js ***!
+  \****************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
+
+exports.default = isByteLength;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+/* eslint-disable prefer-rest-params */
+function isByteLength(str, options) {
+  (0, _assertString2.default)(str);
+  var min = void 0;
+  var max = void 0;
+  if ((typeof options === 'undefined' ? 'undefined' : _typeof(options)) === 'object') {
+    min = options.min || 0;
+    max = options.max;
+  } else {
+    // backwards compatibility: isByteLength(str, min [, max])
+    min = arguments[1];
+    max = arguments[2];
+  }
+  var len = encodeURI(str).split(/%..|./).length - 1;
+  return len >= min && (typeof max === 'undefined' || len <= max);
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/isCreditCard.js":
+/*!****************************************************!*\
+  !*** ./node_modules/validator/lib/isCreditCard.js ***!
+  \****************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = isCreditCard;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+/* eslint-disable max-len */
+var creditCard = /^(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|(222[1-9]|22[3-9][0-9]|2[3-6][0-9]{2}|27[01][0-9]|2720)[0-9]{12}|6(?:011|5[0-9][0-9])[0-9]{12}|3[47][0-9]{13}|3(?:0[0-5]|[68][0-9])[0-9]{11}|(?:2131|1800|35\d{3})\d{11}|6[27][0-9]{14})$/;
+/* eslint-enable max-len */
+
+function isCreditCard(str) {
+  (0, _assertString2.default)(str);
+  var sanitized = str.replace(/[- ]+/g, '');
+  if (!creditCard.test(sanitized)) {
+    return false;
+  }
+  var sum = 0;
+  var digit = void 0;
+  var tmpNum = void 0;
+  var shouldDouble = void 0;
+  for (var i = sanitized.length - 1; i >= 0; i--) {
+    digit = sanitized.substring(i, i + 1);
+    tmpNum = parseInt(digit, 10);
+    if (shouldDouble) {
+      tmpNum *= 2;
+      if (tmpNum >= 10) {
+        sum += tmpNum % 10 + 1;
+      } else {
+        sum += tmpNum;
+      }
+    } else {
+      sum += tmpNum;
+    }
+    shouldDouble = !shouldDouble;
+  }
+  return !!(sum % 10 === 0 ? sanitized : false);
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/isCurrency.js":
+/*!**************************************************!*\
+  !*** ./node_modules/validator/lib/isCurrency.js ***!
+  \**************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = isCurrency;
+
+var _merge = __webpack_require__(/*! ./util/merge */ "./node_modules/validator/lib/util/merge.js");
+
+var _merge2 = _interopRequireDefault(_merge);
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function currencyRegex(options) {
+  var decimal_digits = '\\d{' + options.digits_after_decimal[0] + '}';
+  options.digits_after_decimal.forEach(function (digit, index) {
+    if (index !== 0) decimal_digits = decimal_digits + '|\\d{' + digit + '}';
+  });
+  var symbol = '(\\' + options.symbol.replace(/\./g, '\\.') + ')' + (options.require_symbol ? '' : '?'),
+      negative = '-?',
+      whole_dollar_amount_without_sep = '[1-9]\\d*',
+      whole_dollar_amount_with_sep = '[1-9]\\d{0,2}(\\' + options.thousands_separator + '\\d{3})*',
+      valid_whole_dollar_amounts = ['0', whole_dollar_amount_without_sep, whole_dollar_amount_with_sep],
+      whole_dollar_amount = '(' + valid_whole_dollar_amounts.join('|') + ')?',
+      decimal_amount = '(\\' + options.decimal_separator + '(' + decimal_digits + '))' + (options.require_decimal ? '' : '?');
+  var pattern = whole_dollar_amount + (options.allow_decimal || options.require_decimal ? decimal_amount : '');
+
+  // default is negative sign before symbol, but there are two other options (besides parens)
+  if (options.allow_negatives && !options.parens_for_negatives) {
+    if (options.negative_sign_after_digits) {
+      pattern += negative;
+    } else if (options.negative_sign_before_digits) {
+      pattern = negative + pattern;
+    }
+  }
+
+  // South African Rand, for example, uses R 123 (space) and R-123 (no space)
+  if (options.allow_negative_sign_placeholder) {
+    pattern = '( (?!\\-))?' + pattern;
+  } else if (options.allow_space_after_symbol) {
+    pattern = ' ?' + pattern;
+  } else if (options.allow_space_after_digits) {
+    pattern += '( (?!$))?';
+  }
+
+  if (options.symbol_after_digits) {
+    pattern += symbol;
+  } else {
+    pattern = symbol + pattern;
+  }
+
+  if (options.allow_negatives) {
+    if (options.parens_for_negatives) {
+      pattern = '(\\(' + pattern + '\\)|' + pattern + ')';
+    } else if (!(options.negative_sign_before_digits || options.negative_sign_after_digits)) {
+      pattern = negative + pattern;
+    }
+  }
+
+  // ensure there's a dollar and/or decimal amount, and that
+  // it doesn't start with a space or a negative sign followed by a space
+  return new RegExp('^(?!-? )(?=.*\\d)' + pattern + '$');
+}
+
+var default_currency_options = {
+  symbol: '$',
+  require_symbol: false,
+  allow_space_after_symbol: false,
+  symbol_after_digits: false,
+  allow_negatives: true,
+  parens_for_negatives: false,
+  negative_sign_before_digits: false,
+  negative_sign_after_digits: false,
+  allow_negative_sign_placeholder: false,
+  thousands_separator: ',',
+  decimal_separator: '.',
+  allow_decimal: true,
+  require_decimal: false,
+  digits_after_decimal: [2],
+  allow_space_after_digits: false
+};
+
+function isCurrency(str, options) {
+  (0, _assertString2.default)(str);
+  options = (0, _merge2.default)(options, default_currency_options);
+  return currencyRegex(options).test(str);
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/isDataURI.js":
+/*!*************************************************!*\
+  !*** ./node_modules/validator/lib/isDataURI.js ***!
+  \*************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = isDataURI;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+var validMediaType = /^[a-z]+\/[a-z0-9\-\+]+$/i;
+
+var validAttribute = /^[a-z\-]+=[a-z0-9\-]+$/i;
+
+var validData = /^[a-z0-9!\$&'\(\)\*\+,;=\-\._~:@\/\?%\s]*$/i;
+
+function isDataURI(str) {
+  (0, _assertString2.default)(str);
+  var data = str.split(',');
+  if (data.length < 2) {
+    return false;
+  }
+  var attributes = data.shift().trim().split(';');
+  var schemeAndMediaType = attributes.shift();
+  if (schemeAndMediaType.substr(0, 5) !== 'data:') {
+    return false;
+  }
+  var mediaType = schemeAndMediaType.substr(5);
+  if (mediaType !== '' && !validMediaType.test(mediaType)) {
+    return false;
+  }
+  for (var i = 0; i < attributes.length; i++) {
+    if (i === attributes.length - 1 && attributes[i].toLowerCase() === 'base64') {
+      // ok
+    } else if (!validAttribute.test(attributes[i])) {
+      return false;
+    }
+  }
+  for (var _i = 0; _i < data.length; _i++) {
+    if (!validData.test(data[_i])) {
+      return false;
+    }
+  }
+  return true;
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/isDecimal.js":
+/*!*************************************************!*\
+  !*** ./node_modules/validator/lib/isDecimal.js ***!
+  \*************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = isDecimal;
+
+var _merge = __webpack_require__(/*! ./util/merge */ "./node_modules/validator/lib/util/merge.js");
+
+var _merge2 = _interopRequireDefault(_merge);
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+var _alpha = __webpack_require__(/*! ./alpha */ "./node_modules/validator/lib/alpha.js");
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function decimalRegExp(options) {
+  var regExp = new RegExp('^[-+]?([0-9]+)?(\\' + _alpha.decimal[options.locale] + '[0-9]{' + options.decimal_digits + '})' + (options.force_decimal ? '' : '?') + '$');
+  return regExp;
+}
+
+var default_decimal_options = {
+  force_decimal: false,
+  decimal_digits: '1,',
+  locale: 'en-US'
+};
+
+var blacklist = ['', '-', '+'];
+
+function isDecimal(str, options) {
+  (0, _assertString2.default)(str);
+  options = (0, _merge2.default)(options, default_decimal_options);
+  if (options.locale in _alpha.decimal) {
+    return !blacklist.includes(str.replace(/ /g, '')) && decimalRegExp(options).test(str);
+  }
+  throw new Error('Invalid locale \'' + options.locale + '\'');
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/isDivisibleBy.js":
+/*!*****************************************************!*\
+  !*** ./node_modules/validator/lib/isDivisibleBy.js ***!
+  \*****************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = isDivisibleBy;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+var _toFloat = __webpack_require__(/*! ./toFloat */ "./node_modules/validator/lib/toFloat.js");
+
+var _toFloat2 = _interopRequireDefault(_toFloat);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function isDivisibleBy(str, num) {
+  (0, _assertString2.default)(str);
+  return (0, _toFloat2.default)(str) % parseInt(num, 10) === 0;
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/isEmail.js":
+/*!***********************************************!*\
+  !*** ./node_modules/validator/lib/isEmail.js ***!
+  \***********************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = isEmail;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+var _merge = __webpack_require__(/*! ./util/merge */ "./node_modules/validator/lib/util/merge.js");
+
+var _merge2 = _interopRequireDefault(_merge);
+
+var _isByteLength = __webpack_require__(/*! ./isByteLength */ "./node_modules/validator/lib/isByteLength.js");
+
+var _isByteLength2 = _interopRequireDefault(_isByteLength);
+
+var _isFQDN = __webpack_require__(/*! ./isFQDN */ "./node_modules/validator/lib/isFQDN.js");
+
+var _isFQDN2 = _interopRequireDefault(_isFQDN);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+var default_email_options = {
+  allow_display_name: false,
+  require_display_name: false,
+  allow_utf8_local_part: true,
+  require_tld: true
+};
+
+/* eslint-disable max-len */
+/* eslint-disable no-control-regex */
+var displayName = /^[a-z\d!#\$%&'\*\+\-\/=\?\^_`{\|}~\.\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF]+[a-z\d!#\$%&'\*\+\-\/=\?\^_`{\|}~\,\.\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF\s]*<(.+)>$/i;
+var emailUserPart = /^[a-z\d!#\$%&'\*\+\-\/=\?\^_`{\|}~]+$/i;
+var quotedEmailUser = /^([\s\x01-\x08\x0b\x0c\x0e-\x1f\x7f\x21\x23-\x5b\x5d-\x7e]|(\\[\x01-\x09\x0b\x0c\x0d-\x7f]))*$/i;
+var emailUserUtf8Part = /^[a-z\d!#\$%&'\*\+\-\/=\?\^_`{\|}~\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF]+$/i;
+var quotedEmailUserUtf8 = /^([\s\x01-\x08\x0b\x0c\x0e-\x1f\x7f\x21\x23-\x5b\x5d-\x7e\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF]|(\\[\x01-\x09\x0b\x0c\x0d-\x7f\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF]))*$/i;
+/* eslint-enable max-len */
+/* eslint-enable no-control-regex */
+
+function isEmail(str, options) {
+  (0, _assertString2.default)(str);
+  options = (0, _merge2.default)(options, default_email_options);
+
+  if (options.require_display_name || options.allow_display_name) {
+    var display_email = str.match(displayName);
+    if (display_email) {
+      str = display_email[1];
+    } else if (options.require_display_name) {
+      return false;
+    }
+  }
+
+  var parts = str.split('@');
+  var domain = parts.pop();
+  var user = parts.join('@');
+
+  var lower_domain = domain.toLowerCase();
+
+  if (lower_domain === 'gmail.com' || lower_domain === 'googlemail.com') {
+    /*
+      Previously we removed dots for gmail addresses before validating.
+      This was removed because it allows `multiple..dots@gmail.com`
+      to be reported as valid, but it is not.
+      Gmail only normalizes single dots, removing them from here is pointless,
+      should be done in normalizeEmail
+    */
+    user = user.toLowerCase();
+  }
+
+  if (!(0, _isByteLength2.default)(user, { max: 64 }) || !(0, _isByteLength2.default)(domain, { max: 254 })) {
+    return false;
+  }
+
+  if (!(0, _isFQDN2.default)(domain, { require_tld: options.require_tld })) {
+    return false;
+  }
+
+  if (user[0] === '"') {
+    user = user.slice(1, user.length - 1);
+    return options.allow_utf8_local_part ? quotedEmailUserUtf8.test(user) : quotedEmailUser.test(user);
+  }
+
+  var pattern = options.allow_utf8_local_part ? emailUserUtf8Part : emailUserPart;
+
+  var user_parts = user.split('.');
+  for (var i = 0; i < user_parts.length; i++) {
+    if (!pattern.test(user_parts[i])) {
+      return false;
+    }
+  }
+
+  return true;
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/isEmpty.js":
+/*!***********************************************!*\
+  !*** ./node_modules/validator/lib/isEmpty.js ***!
+  \***********************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = isEmpty;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function isEmpty(str) {
+  (0, _assertString2.default)(str);
+  return str.length === 0;
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/isFQDN.js":
+/*!**********************************************!*\
+  !*** ./node_modules/validator/lib/isFQDN.js ***!
+  \**********************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = isFQDN;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+var _merge = __webpack_require__(/*! ./util/merge */ "./node_modules/validator/lib/util/merge.js");
+
+var _merge2 = _interopRequireDefault(_merge);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+var default_fqdn_options = {
+  require_tld: true,
+  allow_underscores: false,
+  allow_trailing_dot: false
+};
+
+function isFQDN(str, options) {
+  (0, _assertString2.default)(str);
+  options = (0, _merge2.default)(options, default_fqdn_options);
+
+  /* Remove the optional trailing dot before checking validity */
+  if (options.allow_trailing_dot && str[str.length - 1] === '.') {
+    str = str.substring(0, str.length - 1);
+  }
+  var parts = str.split('.');
+  for (var i = 0; i < parts.length; i++) {
+    if (parts[i].length > 63) {
+      return false;
+    }
+  }
+  if (options.require_tld) {
+    var tld = parts.pop();
+    if (!parts.length || !/^([a-z\u00a1-\uffff]{2,}|xn[a-z0-9-]{2,})$/i.test(tld)) {
+      return false;
+    }
+    // disallow spaces
+    if (/[\s\u2002-\u200B\u202F\u205F\u3000\uFEFF\uDB40\uDC20]/.test(tld)) {
+      return false;
+    }
+  }
+  for (var part, _i = 0; _i < parts.length; _i++) {
+    part = parts[_i];
+    if (options.allow_underscores) {
+      part = part.replace(/_/g, '');
+    }
+    if (!/^[a-z\u00a1-\uffff0-9-]+$/i.test(part)) {
+      return false;
+    }
+    // disallow full-width chars
+    if (/[\uff01-\uff5e]/.test(part)) {
+      return false;
+    }
+    if (part[0] === '-' || part[part.length - 1] === '-') {
+      return false;
+    }
+  }
+  return true;
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/isFloat.js":
+/*!***********************************************!*\
+  !*** ./node_modules/validator/lib/isFloat.js ***!
+  \***********************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = isFloat;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+var _alpha = __webpack_require__(/*! ./alpha */ "./node_modules/validator/lib/alpha.js");
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function isFloat(str, options) {
+  (0, _assertString2.default)(str);
+  options = options || {};
+  var float = new RegExp('^(?:[-+])?(?:[0-9]+)?(?:\\' + (options.locale ? _alpha.decimal[options.locale] : '.') + '[0-9]*)?(?:[eE][\\+\\-]?(?:[0-9]+))?$');
+  if (str === '' || str === '.' || str === '-' || str === '+') {
+    return false;
+  }
+  var value = parseFloat(str.replace(',', '.'));
+  return float.test(str) && (!options.hasOwnProperty('min') || value >= options.min) && (!options.hasOwnProperty('max') || value <= options.max) && (!options.hasOwnProperty('lt') || value < options.lt) && (!options.hasOwnProperty('gt') || value > options.gt);
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/isFullWidth.js":
+/*!***************************************************!*\
+  !*** ./node_modules/validator/lib/isFullWidth.js ***!
+  \***************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.fullWidth = undefined;
+exports.default = isFullWidth;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+var fullWidth = exports.fullWidth = /[^\u0020-\u007E\uFF61-\uFF9F\uFFA0-\uFFDC\uFFE8-\uFFEE0-9a-zA-Z]/;
+
+function isFullWidth(str) {
+  (0, _assertString2.default)(str);
+  return fullWidth.test(str);
+}
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/isHalfWidth.js":
+/*!***************************************************!*\
+  !*** ./node_modules/validator/lib/isHalfWidth.js ***!
+  \***************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.halfWidth = undefined;
+exports.default = isHalfWidth;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+var halfWidth = exports.halfWidth = /[\u0020-\u007E\uFF61-\uFF9F\uFFA0-\uFFDC\uFFE8-\uFFEE0-9a-zA-Z]/;
+
+function isHalfWidth(str) {
+  (0, _assertString2.default)(str);
+  return halfWidth.test(str);
+}
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/isHash.js":
+/*!**********************************************!*\
+  !*** ./node_modules/validator/lib/isHash.js ***!
+  \**********************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = isHash;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+var lengths = {
+  md5: 32,
+  md4: 32,
+  sha1: 40,
+  sha256: 64,
+  sha384: 96,
+  sha512: 128,
+  ripemd128: 32,
+  ripemd160: 40,
+  tiger128: 32,
+  tiger160: 40,
+  tiger192: 48,
+  crc32: 8,
+  crc32b: 8
+};
+
+function isHash(str, algorithm) {
+  (0, _assertString2.default)(str);
+  var hash = new RegExp('^[a-f0-9]{' + lengths[algorithm] + '}$');
+  return hash.test(str);
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/isHexColor.js":
+/*!**************************************************!*\
+  !*** ./node_modules/validator/lib/isHexColor.js ***!
+  \**************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = isHexColor;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+var hexcolor = /^#?([0-9A-F]{3}|[0-9A-F]{6})$/i;
+
+function isHexColor(str) {
+  (0, _assertString2.default)(str);
+  return hexcolor.test(str);
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/isHexadecimal.js":
+/*!*****************************************************!*\
+  !*** ./node_modules/validator/lib/isHexadecimal.js ***!
+  \*****************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = isHexadecimal;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+var hexadecimal = /^[0-9A-F]+$/i;
+
+function isHexadecimal(str) {
+  (0, _assertString2.default)(str);
+  return hexadecimal.test(str);
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/isIP.js":
+/*!********************************************!*\
+  !*** ./node_modules/validator/lib/isIP.js ***!
+  \********************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = isIP;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+var ipv4Maybe = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+var ipv6Block = /^[0-9A-F]{1,4}$/i;
+
+function isIP(str) {
+  var version = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : '';
+
+  (0, _assertString2.default)(str);
+  version = String(version);
+  if (!version) {
+    return isIP(str, 4) || isIP(str, 6);
+  } else if (version === '4') {
+    if (!ipv4Maybe.test(str)) {
+      return false;
+    }
+    var parts = str.split('.').sort(function (a, b) {
+      return a - b;
+    });
+    return parts[3] <= 255;
+  } else if (version === '6') {
+    var blocks = str.split(':');
+    var foundOmissionBlock = false; // marker to indicate ::
+
+    // At least some OS accept the last 32 bits of an IPv6 address
+    // (i.e. 2 of the blocks) in IPv4 notation, and RFC 3493 says
+    // that '::ffff:a.b.c.d' is valid for IPv4-mapped IPv6 addresses,
+    // and '::a.b.c.d' is deprecated, but also valid.
+    var foundIPv4TransitionBlock = isIP(blocks[blocks.length - 1], 4);
+    var expectedNumberOfBlocks = foundIPv4TransitionBlock ? 7 : 8;
+
+    if (blocks.length > expectedNumberOfBlocks) {
+      return false;
+    }
+    // initial or final ::
+    if (str === '::') {
+      return true;
+    } else if (str.substr(0, 2) === '::') {
+      blocks.shift();
+      blocks.shift();
+      foundOmissionBlock = true;
+    } else if (str.substr(str.length - 2) === '::') {
+      blocks.pop();
+      blocks.pop();
+      foundOmissionBlock = true;
+    }
+
+    for (var i = 0; i < blocks.length; ++i) {
+      // test for a :: which can not be at the string start/end
+      // since those cases have been handled above
+      if (blocks[i] === '' && i > 0 && i < blocks.length - 1) {
+        if (foundOmissionBlock) {
+          return false; // multiple :: in address
+        }
+        foundOmissionBlock = true;
+      } else if (foundIPv4TransitionBlock && i === blocks.length - 1) {
+        // it has been checked before that the last
+        // block is a valid IPv4 address
+      } else if (!ipv6Block.test(blocks[i])) {
+        return false;
+      }
+    }
+    if (foundOmissionBlock) {
+      return blocks.length >= 1;
+    }
+    return blocks.length === expectedNumberOfBlocks;
+  }
+  return false;
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/isISBN.js":
+/*!**********************************************!*\
+  !*** ./node_modules/validator/lib/isISBN.js ***!
+  \**********************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = isISBN;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+var isbn10Maybe = /^(?:[0-9]{9}X|[0-9]{10})$/;
+var isbn13Maybe = /^(?:[0-9]{13})$/;
+var factor = [1, 3];
+
+function isISBN(str) {
+  var version = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : '';
+
+  (0, _assertString2.default)(str);
+  version = String(version);
+  if (!version) {
+    return isISBN(str, 10) || isISBN(str, 13);
+  }
+  var sanitized = str.replace(/[\s-]+/g, '');
+  var checksum = 0;
+  var i = void 0;
+  if (version === '10') {
+    if (!isbn10Maybe.test(sanitized)) {
+      return false;
+    }
+    for (i = 0; i < 9; i++) {
+      checksum += (i + 1) * sanitized.charAt(i);
+    }
+    if (sanitized.charAt(9) === 'X') {
+      checksum += 10 * 10;
+    } else {
+      checksum += 10 * sanitized.charAt(9);
+    }
+    if (checksum % 11 === 0) {
+      return !!sanitized;
+    }
+  } else if (version === '13') {
+    if (!isbn13Maybe.test(sanitized)) {
+      return false;
+    }
+    for (i = 0; i < 12; i++) {
+      checksum += factor[i % 2] * sanitized.charAt(i);
+    }
+    if (sanitized.charAt(12) - (10 - checksum % 10) % 10 === 0) {
+      return !!sanitized;
+    }
+  }
+  return false;
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/isISIN.js":
+/*!**********************************************!*\
+  !*** ./node_modules/validator/lib/isISIN.js ***!
+  \**********************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = isISIN;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+var isin = /^[A-Z]{2}[0-9A-Z]{9}[0-9]$/;
+
+function isISIN(str) {
+  (0, _assertString2.default)(str);
+  if (!isin.test(str)) {
+    return false;
+  }
+
+  var checksumStr = str.replace(/[A-Z]/g, function (character) {
+    return parseInt(character, 36);
+  });
+
+  var sum = 0;
+  var digit = void 0;
+  var tmpNum = void 0;
+  var shouldDouble = true;
+  for (var i = checksumStr.length - 2; i >= 0; i--) {
+    digit = checksumStr.substring(i, i + 1);
+    tmpNum = parseInt(digit, 10);
+    if (shouldDouble) {
+      tmpNum *= 2;
+      if (tmpNum >= 10) {
+        sum += tmpNum + 1;
+      } else {
+        sum += tmpNum;
+      }
+    } else {
+      sum += tmpNum;
+    }
+    shouldDouble = !shouldDouble;
+  }
+
+  return parseInt(str.substr(str.length - 1), 10) === (10000 - sum) % 10;
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/isISO31661Alpha2.js":
+/*!********************************************************!*\
+  !*** ./node_modules/validator/lib/isISO31661Alpha2.js ***!
+  \********************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = isISO31661Alpha2;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+// from https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2
+var validISO31661Alpha2CountriesCodes = ['AD', 'AE', 'AF', 'AG', 'AI', 'AL', 'AM', 'AO', 'AQ', 'AR', 'AS', 'AT', 'AU', 'AW', 'AX', 'AZ', 'BA', 'BB', 'BD', 'BE', 'BF', 'BG', 'BH', 'BI', 'BJ', 'BL', 'BM', 'BN', 'BO', 'BQ', 'BR', 'BS', 'BT', 'BV', 'BW', 'BY', 'BZ', 'CA', 'CC', 'CD', 'CF', 'CG', 'CH', 'CI', 'CK', 'CL', 'CM', 'CN', 'CO', 'CR', 'CU', 'CV', 'CW', 'CX', 'CY', 'CZ', 'DE', 'DJ', 'DK', 'DM', 'DO', 'DZ', 'EC', 'EE', 'EG', 'EH', 'ER', 'ES', 'ET', 'FI', 'FJ', 'FK', 'FM', 'FO', 'FR', 'GA', 'GB', 'GD', 'GE', 'GF', 'GG', 'GH', 'GI', 'GL', 'GM', 'GN', 'GP', 'GQ', 'GR', 'GS', 'GT', 'GU', 'GW', 'GY', 'HK', 'HM', 'HN', 'HR', 'HT', 'HU', 'ID', 'IE', 'IL', 'IM', 'IN', 'IO', 'IQ', 'IR', 'IS', 'IT', 'JE', 'JM', 'JO', 'JP', 'KE', 'KG', 'KH', 'KI', 'KM', 'KN', 'KP', 'KR', 'KW', 'KY', 'KZ', 'LA', 'LB', 'LC', 'LI', 'LK', 'LR', 'LS', 'LT', 'LU', 'LV', 'LY', 'MA', 'MC', 'MD', 'ME', 'MF', 'MG', 'MH', 'MK', 'ML', 'MM', 'MN', 'MO', 'MP', 'MQ', 'MR', 'MS', 'MT', 'MU', 'MV', 'MW', 'MX', 'MY', 'MZ', 'NA', 'NC', 'NE', 'NF', 'NG', 'NI', 'NL', 'NO', 'NP', 'NR', 'NU', 'NZ', 'OM', 'PA', 'PE', 'PF', 'PG', 'PH', 'PK', 'PL', 'PM', 'PN', 'PR', 'PS', 'PT', 'PW', 'PY', 'QA', 'RE', 'RO', 'RS', 'RU', 'RW', 'SA', 'SB', 'SC', 'SD', 'SE', 'SG', 'SH', 'SI', 'SJ', 'SK', 'SL', 'SM', 'SN', 'SO', 'SR', 'SS', 'ST', 'SV', 'SX', 'SY', 'SZ', 'TC', 'TD', 'TF', 'TG', 'TH', 'TJ', 'TK', 'TL', 'TM', 'TN', 'TO', 'TR', 'TT', 'TV', 'TW', 'TZ', 'UA', 'UG', 'UM', 'US', 'UY', 'UZ', 'VA', 'VC', 'VE', 'VG', 'VI', 'VN', 'VU', 'WF', 'WS', 'YE', 'YT', 'ZA', 'ZM', 'ZW'];
+
+function isISO31661Alpha2(str) {
+  (0, _assertString2.default)(str);
+  return validISO31661Alpha2CountriesCodes.includes(str.toUpperCase());
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/isISO31661Alpha3.js":
+/*!********************************************************!*\
+  !*** ./node_modules/validator/lib/isISO31661Alpha3.js ***!
+  \********************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = isISO31661Alpha3;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+// from https://en.wikipedia.org/wiki/ISO_3166-1_alpha-3
+var validISO31661Alpha3CountriesCodes = ['AFG', 'ALA', 'ALB', 'DZA', 'ASM', 'AND', 'AGO', 'AIA', 'ATA', 'ATG', 'ARG', 'ARM', 'ABW', 'AUS', 'AUT', 'AZE', 'BHS', 'BHR', 'BGD', 'BRB', 'BLR', 'BEL', 'BLZ', 'BEN', 'BMU', 'BTN', 'BOL', 'BES', 'BIH', 'BWA', 'BVT', 'BRA', 'IOT', 'BRN', 'BGR', 'BFA', 'BDI', 'KHM', 'CMR', 'CAN', 'CPV', 'CYM', 'CAF', 'TCD', 'CHL', 'CHN', 'CXR', 'CCK', 'COL', 'COM', 'COG', 'COD', 'COK', 'CRI', 'CIV', 'HRV', 'CUB', 'CUW', 'CYP', 'CZE', 'DNK', 'DJI', 'DMA', 'DOM', 'ECU', 'EGY', 'SLV', 'GNQ', 'ERI', 'EST', 'ETH', 'FLK', 'FRO', 'FJI', 'FIN', 'FRA', 'GUF', 'PYF', 'ATF', 'GAB', 'GMB', 'GEO', 'DEU', 'GHA', 'GIB', 'GRC', 'GRL', 'GRD', 'GLP', 'GUM', 'GTM', 'GGY', 'GIN', 'GNB', 'GUY', 'HTI', 'HMD', 'VAT', 'HND', 'HKG', 'HUN', 'ISL', 'IND', 'IDN', 'IRN', 'IRQ', 'IRL', 'IMN', 'ISR', 'ITA', 'JAM', 'JPN', 'JEY', 'JOR', 'KAZ', 'KEN', 'KIR', 'PRK', 'KOR', 'KWT', 'KGZ', 'LAO', 'LVA', 'LBN', 'LSO', 'LBR', 'LBY', 'LIE', 'LTU', 'LUX', 'MAC', 'MKD', 'MDG', 'MWI', 'MYS', 'MDV', 'MLI', 'MLT', 'MHL', 'MTQ', 'MRT', 'MUS', 'MYT', 'MEX', 'FSM', 'MDA', 'MCO', 'MNG', 'MNE', 'MSR', 'MAR', 'MOZ', 'MMR', 'NAM', 'NRU', 'NPL', 'NLD', 'NCL', 'NZL', 'NIC', 'NER', 'NGA', 'NIU', 'NFK', 'MNP', 'NOR', 'OMN', 'PAK', 'PLW', 'PSE', 'PAN', 'PNG', 'PRY', 'PER', 'PHL', 'PCN', 'POL', 'PRT', 'PRI', 'QAT', 'REU', 'ROU', 'RUS', 'RWA', 'BLM', 'SHN', 'KNA', 'LCA', 'MAF', 'SPM', 'VCT', 'WSM', 'SMR', 'STP', 'SAU', 'SEN', 'SRB', 'SYC', 'SLE', 'SGP', 'SXM', 'SVK', 'SVN', 'SLB', 'SOM', 'ZAF', 'SGS', 'SSD', 'ESP', 'LKA', 'SDN', 'SUR', 'SJM', 'SWZ', 'SWE', 'CHE', 'SYR', 'TWN', 'TJK', 'TZA', 'THA', 'TLS', 'TGO', 'TKL', 'TON', 'TTO', 'TUN', 'TUR', 'TKM', 'TCA', 'TUV', 'UGA', 'UKR', 'ARE', 'GBR', 'USA', 'UMI', 'URY', 'UZB', 'VUT', 'VEN', 'VNM', 'VGB', 'VIR', 'WLF', 'ESH', 'YEM', 'ZMB', 'ZWE'];
+
+function isISO31661Alpha3(str) {
+  (0, _assertString2.default)(str);
+  return validISO31661Alpha3CountriesCodes.includes(str.toUpperCase());
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/isISO8601.js":
+/*!*************************************************!*\
+  !*** ./node_modules/validator/lib/isISO8601.js ***!
+  \*************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = isISO8601;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+/* eslint-disable max-len */
+// from http://goo.gl/0ejHHW
+var iso8601 = /^([\+-]?\d{4}(?!\d{2}\b))((-?)((0[1-9]|1[0-2])(\3([12]\d|0[1-9]|3[01]))?|W([0-4]\d|5[0-2])(-?[1-7])?|(00[1-9]|0[1-9]\d|[12]\d{2}|3([0-5]\d|6[1-6])))([T\s]((([01]\d|2[0-3])((:?)[0-5]\d)?|24:?00)([\.,]\d+(?!:))?)?(\17[0-5]\d([\.,]\d+)?)?([zZ]|([\+-])([01]\d|2[0-3]):?([0-5]\d)?)?)?)?$/;
+/* eslint-enable max-len */
+
+function isISO8601(str) {
+  (0, _assertString2.default)(str);
+  return iso8601.test(str);
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/isISRC.js":
+/*!**********************************************!*\
+  !*** ./node_modules/validator/lib/isISRC.js ***!
+  \**********************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = isISRC;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+// see http://isrc.ifpi.org/en/isrc-standard/code-syntax
+var isrc = /^[A-Z]{2}[0-9A-Z]{3}\d{2}\d{5}$/;
+
+function isISRC(str) {
+  (0, _assertString2.default)(str);
+  return isrc.test(str);
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/isISSN.js":
+/*!**********************************************!*\
+  !*** ./node_modules/validator/lib/isISSN.js ***!
+  \**********************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = isISSN;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+var issn = '^\\d{4}-?\\d{3}[\\dX]$';
+
+function isISSN(str) {
+  var options = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
+
+  (0, _assertString2.default)(str);
+  var testIssn = issn;
+  testIssn = options.require_hyphen ? testIssn.replace('?', '') : testIssn;
+  testIssn = options.case_sensitive ? new RegExp(testIssn) : new RegExp(testIssn, 'i');
+  if (!testIssn.test(str)) {
+    return false;
+  }
+  var issnDigits = str.replace('-', '');
+  var position = 8;
+  var checksum = 0;
+  var _iteratorNormalCompletion = true;
+  var _didIteratorError = false;
+  var _iteratorError = undefined;
+
+  try {
+    for (var _iterator = issnDigits[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
+      var digit = _step.value;
+
+      var digitValue = digit.toUpperCase() === 'X' ? 10 : +digit;
+      checksum += digitValue * position;
+      --position;
+    }
+  } catch (err) {
+    _didIteratorError = true;
+    _iteratorError = err;
+  } finally {
+    try {
+      if (!_iteratorNormalCompletion && _iterator.return) {
+        _iterator.return();
+      }
+    } finally {
+      if (_didIteratorError) {
+        throw _iteratorError;
+      }
+    }
+  }
+
+  return checksum % 11 === 0;
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/isIn.js":
+/*!********************************************!*\
+  !*** ./node_modules/validator/lib/isIn.js ***!
+  \********************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
+
+exports.default = isIn;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+var _toString = __webpack_require__(/*! ./util/toString */ "./node_modules/validator/lib/util/toString.js");
+
+var _toString2 = _interopRequireDefault(_toString);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function isIn(str, options) {
+  (0, _assertString2.default)(str);
+  var i = void 0;
+  if (Object.prototype.toString.call(options) === '[object Array]') {
+    var array = [];
+    for (i in options) {
+      if ({}.hasOwnProperty.call(options, i)) {
+        array[i] = (0, _toString2.default)(options[i]);
+      }
+    }
+    return array.indexOf(str) >= 0;
+  } else if ((typeof options === 'undefined' ? 'undefined' : _typeof(options)) === 'object') {
+    return options.hasOwnProperty(str);
+  } else if (options && typeof options.indexOf === 'function') {
+    return options.indexOf(str) >= 0;
+  }
+  return false;
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/isInt.js":
+/*!*********************************************!*\
+  !*** ./node_modules/validator/lib/isInt.js ***!
+  \*********************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = isInt;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+var int = /^(?:[-+]?(?:0|[1-9][0-9]*))$/;
+var intLeadingZeroes = /^[-+]?[0-9]+$/;
+
+function isInt(str, options) {
+  (0, _assertString2.default)(str);
+  options = options || {};
+
+  // Get the regex to use for testing, based on whether
+  // leading zeroes are allowed or not.
+  var regex = options.hasOwnProperty('allow_leading_zeroes') && !options.allow_leading_zeroes ? int : intLeadingZeroes;
+
+  // Check min/max/lt/gt
+  var minCheckPassed = !options.hasOwnProperty('min') || str >= options.min;
+  var maxCheckPassed = !options.hasOwnProperty('max') || str <= options.max;
+  var ltCheckPassed = !options.hasOwnProperty('lt') || str < options.lt;
+  var gtCheckPassed = !options.hasOwnProperty('gt') || str > options.gt;
+
+  return regex.test(str) && minCheckPassed && maxCheckPassed && ltCheckPassed && gtCheckPassed;
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/isJSON.js":
+/*!**********************************************!*\
+  !*** ./node_modules/validator/lib/isJSON.js ***!
+  \**********************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
+
+exports.default = isJSON;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function isJSON(str) {
+  (0, _assertString2.default)(str);
+  try {
+    var obj = JSON.parse(str);
+    return !!obj && (typeof obj === 'undefined' ? 'undefined' : _typeof(obj)) === 'object';
+  } catch (e) {/* ignore */}
+  return false;
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/isLatLong.js":
+/*!*************************************************!*\
+  !*** ./node_modules/validator/lib/isLatLong.js ***!
+  \*************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+exports.default = function (str) {
+  (0, _assertString2.default)(str);
+  if (!str.includes(',')) return false;
+  var pair = str.split(',');
+  return lat.test(pair[0]) && long.test(pair[1]);
+};
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+var lat = /^\(?[+-]?(90(\.0+)?|[1-8]?\d(\.\d+)?)$/;
+var long = /^\s?[+-]?(180(\.0+)?|1[0-7]\d(\.\d+)?|\d{1,2}(\.\d+)?)\)?$/;
+
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/isLength.js":
+/*!************************************************!*\
+  !*** ./node_modules/validator/lib/isLength.js ***!
+  \************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
+
+exports.default = isLength;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+/* eslint-disable prefer-rest-params */
+function isLength(str, options) {
+  (0, _assertString2.default)(str);
+  var min = void 0;
+  var max = void 0;
+  if ((typeof options === 'undefined' ? 'undefined' : _typeof(options)) === 'object') {
+    min = options.min || 0;
+    max = options.max;
+  } else {
+    // backwards compatibility: isLength(str, min [, max])
+    min = arguments[1];
+    max = arguments[2];
+  }
+  var surrogatePairs = str.match(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g) || [];
+  var len = str.length - surrogatePairs.length;
+  return len >= min && (typeof max === 'undefined' || len <= max);
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/isLowercase.js":
+/*!***************************************************!*\
+  !*** ./node_modules/validator/lib/isLowercase.js ***!
+  \***************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = isLowercase;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function isLowercase(str) {
+  (0, _assertString2.default)(str);
+  return str === str.toLowerCase();
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/isMACAddress.js":
+/*!****************************************************!*\
+  !*** ./node_modules/validator/lib/isMACAddress.js ***!
+  \****************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = isMACAddress;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+var macAddress = /^([0-9a-fA-F][0-9a-fA-F]:){5}([0-9a-fA-F][0-9a-fA-F])$/;
+
+function isMACAddress(str) {
+  (0, _assertString2.default)(str);
+  return macAddress.test(str);
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/isMD5.js":
+/*!*********************************************!*\
+  !*** ./node_modules/validator/lib/isMD5.js ***!
+  \*********************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = isMD5;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+var md5 = /^[a-f0-9]{32}$/;
+
+function isMD5(str) {
+  (0, _assertString2.default)(str);
+  return md5.test(str);
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/isMimeType.js":
+/*!**************************************************!*\
+  !*** ./node_modules/validator/lib/isMimeType.js ***!
+  \**************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = isMimeType;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+/*
+  Checks if the provided string matches to a correct Media type format (MIME type)
+
+  This function only checks is the string format follows the
+  etablished rules by the according RFC specifications.
+  This function supports 'charset' in textual media types
+  (https://tools.ietf.org/html/rfc6657).
+
+  This function does not check against all the media types listed
+  by the IANA (https://www.iana.org/assignments/media-types/media-types.xhtml)
+  because of lightness purposes : it would require to include
+  all these MIME types in this librairy, which would weigh it
+  significantly. This kind of effort maybe is not worth for the use that
+  this function has in this entire librairy.
+
+  More informations in the RFC specifications :
+  - https://tools.ietf.org/html/rfc2045
+  - https://tools.ietf.org/html/rfc2046
+  - https://tools.ietf.org/html/rfc7231#section-3.1.1.1
+  - https://tools.ietf.org/html/rfc7231#section-3.1.1.5
+*/
+
+// Match simple MIME types
+// NB :
+//   Subtype length must not exceed 100 characters.
+//   This rule does not comply to the RFC specs (what is the max length ?).
+var mimeTypeSimple = /^(application|audio|font|image|message|model|multipart|text|video)\/[a-zA-Z0-9\.\-\+]{1,100}$/i; // eslint-disable-line max-len
+
+// Handle "charset" in "text/*"
+var mimeTypeText = /^text\/[a-zA-Z0-9\.\-\+]{1,100};\s?charset=("[a-zA-Z0-9\.\-\+\s]{0,70}"|[a-zA-Z0-9\.\-\+]{0,70})(\s?\([a-zA-Z0-9\.\-\+\s]{1,20}\))?$/i; // eslint-disable-line max-len
+
+// Handle "boundary" in "multipart/*"
+var mimeTypeMultipart = /^multipart\/[a-zA-Z0-9\.\-\+]{1,100}(;\s?(boundary|charset)=("[a-zA-Z0-9\.\-\+\s]{0,70}"|[a-zA-Z0-9\.\-\+]{0,70})(\s?\([a-zA-Z0-9\.\-\+\s]{1,20}\))?){0,2}$/i; // eslint-disable-line max-len
+
+function isMimeType(str) {
+  (0, _assertString2.default)(str);
+  return mimeTypeSimple.test(str) || mimeTypeText.test(str) || mimeTypeMultipart.test(str);
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/isMobilePhone.js":
+/*!*****************************************************!*\
+  !*** ./node_modules/validator/lib/isMobilePhone.js ***!
+  \*****************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = isMobilePhone;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+/* eslint-disable max-len */
+var phones = {
+  'ar-AE': /^((\+?971)|0)?5[024568]\d{7}$/,
+  'ar-DZ': /^(\+?213|0)(5|6|7)\d{8}$/,
+  'ar-EG': /^((\+?20)|0)?1[012]\d{8}$/,
+  'ar-JO': /^(\+?962|0)?7[789]\d{7}$/,
+  'ar-SA': /^(!?(\+?966)|0)?5\d{8}$/,
+  'ar-SY': /^(!?(\+?963)|0)?9\d{8}$/,
+  'be-BY': /^(\+?375)?(24|25|29|33|44)\d{7}$/,
+  'bg-BG': /^(\+?359|0)?8[789]\d{7}$/,
+  'cs-CZ': /^(\+?420)? ?[1-9][0-9]{2} ?[0-9]{3} ?[0-9]{3}$/,
+  'da-DK': /^(\+?45)?\s?\d{2}\s?\d{2}\s?\d{2}\s?\d{2}$/,
+  'de-DE': /^(\+?49[ \.\-])?([\(]{1}[0-9]{1,6}[\)])?([0-9 \.\-\/]{3,20})((x|ext|extension)[ ]?[0-9]{1,4})?$/,
+  'el-GR': /^(\+?30|0)?(69\d{8})$/,
+  'en-AU': /^(\+?61|0)4\d{8}$/,
+  'en-GB': /^(\+?44|0)7\d{9}$/,
+  'en-HK': /^(\+?852\-?)?[456789]\d{3}\-?\d{4}$/,
+  'en-IN': /^(\+?91|0)?[6789]\d{9}$/,
+  'en-KE': /^(\+?254|0)?[7]\d{8}$/,
+  'en-NG': /^(\+?234|0)?[789]\d{9}$/,
+  'en-NZ': /^(\+?64|0)2\d{7,9}$/,
+  'en-PK': /^((\+92)|(0092))-{0,1}\d{3}-{0,1}\d{7}$|^\d{11}$|^\d{4}-\d{7}$/,
+  'en-RW': /^(\+?250|0)?[7]\d{8}$/,
+  'en-SG': /^(\+65)?[89]\d{7}$/,
+  'en-TZ': /^(\+?255|0)?[67]\d{8}$/,
+  'en-UG': /^(\+?256|0)?[7]\d{8}$/,
+  'en-US': /^(\+?1)?[2-9]\d{2}[2-9](?!11)\d{6}$/,
+  'en-ZA': /^(\+?27|0)\d{9}$/,
+  'en-ZM': /^(\+?26)?09[567]\d{7}$/,
+  'es-ES': /^(\+?34)?(6\d{1}|7[1234])\d{7}$/,
+  'et-EE': /^(\+?372)?\s?(5|8[1-4])\s?([0-9]\s?){6,7}$/,
+  'fa-IR': /^(\+?98[\-\s]?|0)9[0-39]\d[\-\s]?\d{3}[\-\s]?\d{4}$/,
+  'fi-FI': /^(\+?358|0)\s?(4(0|1|2|4|5|6)?|50)\s?(\d\s?){4,8}\d$/,
+  'fo-FO': /^(\+?298)?\s?\d{2}\s?\d{2}\s?\d{2}$/,
+  'fr-FR': /^(\+?33|0)[67]\d{8}$/,
+  'he-IL': /^(\+972|0)([23489]|5[012345689]|77)[1-9]\d{6}/,
+  'hu-HU': /^(\+?36)(20|30|70)\d{7}$/,
+  'id-ID': /^(\+?62|0[1-9])[\s|\d]+$/,
+  'it-IT': /^(\+?39)?\s?3\d{2} ?\d{6,7}$/,
+  'ja-JP': /^(\+?81|0)[789]0[ \-]?[1-9]\d{2}[ \-]?\d{5}$/,
+  'kk-KZ': /^(\+?7|8)?7\d{9}$/,
+  'kl-GL': /^(\+?299)?\s?\d{2}\s?\d{2}\s?\d{2}$/,
+  'ko-KR': /^((\+?82)[ \-]?)?0?1([0|1|6|7|8|9]{1})[ \-]?\d{3,4}[ \-]?\d{4}$/,
+  'lt-LT': /^(\+370|8)\d{8}$/,
+  'ms-MY': /^(\+?6?01){1}(([145]{1}(\-|\s)?\d{7,8})|([236789]{1}(\s|\-)?\d{7}))$/,
+  'nb-NO': /^(\+?47)?[49]\d{7}$/,
+  'nl-BE': /^(\+?32|0)4?\d{8}$/,
+  'nn-NO': /^(\+?47)?[49]\d{7}$/,
+  'pl-PL': /^(\+?48)? ?[5-8]\d ?\d{3} ?\d{2} ?\d{2}$/,
+  'pt-BR': /^(\+?55|0)\-?[1-9]{2}\-?[2-9]{1}\d{3,4}\-?\d{4}$/,
+  'pt-PT': /^(\+?351)?9[1236]\d{7}$/,
+  'ro-RO': /^(\+?4?0)\s?7\d{2}(\/|\s|\.|\-)?\d{3}(\s|\.|\-)?\d{3}$/,
+  'ru-RU': /^(\+?7|8)?9\d{9}$/,
+  'sk-SK': /^(\+?421)? ?[1-9][0-9]{2} ?[0-9]{3} ?[0-9]{3}$/,
+  'sr-RS': /^(\+3816|06)[- \d]{5,9}$/,
+  'th-TH': /^(\+66|66|0)\d{9}$/,
+  'tr-TR': /^(\+?90|0)?5\d{9}$/,
+  'uk-UA': /^(\+?38|8)?0\d{9}$/,
+  'vi-VN': /^(\+?84|0)?((1(2([0-9])|6([2-9])|88|99))|(9((?!5)[0-9])))([0-9]{7})$/,
+  'zh-CN': /^(\+?0?86\-?)?1[3456789]\d{9}$/,
+  'zh-TW': /^(\+?886\-?|0)?9\d{8}$/
+};
+/* eslint-enable max-len */
+
+// aliases
+phones['en-CA'] = phones['en-US'];
+phones['fr-BE'] = phones['nl-BE'];
+phones['zh-HK'] = phones['en-HK'];
+
+function isMobilePhone(str, locale, options) {
+  (0, _assertString2.default)(str);
+  if (options && options.strictMode && !str.startsWith('+')) {
+    return false;
+  }
+  if (locale in phones) {
+    return phones[locale].test(str);
+  } else if (locale === 'any') {
+    for (var key in phones) {
+      if (phones.hasOwnProperty(key)) {
+        var phone = phones[key];
+        if (phone.test(str)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+  throw new Error('Invalid locale \'' + locale + '\'');
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/isMongoId.js":
+/*!*************************************************!*\
+  !*** ./node_modules/validator/lib/isMongoId.js ***!
+  \*************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = isMongoId;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+var _isHexadecimal = __webpack_require__(/*! ./isHexadecimal */ "./node_modules/validator/lib/isHexadecimal.js");
+
+var _isHexadecimal2 = _interopRequireDefault(_isHexadecimal);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function isMongoId(str) {
+  (0, _assertString2.default)(str);
+  return (0, _isHexadecimal2.default)(str) && str.length === 24;
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/isMultibyte.js":
+/*!***************************************************!*\
+  !*** ./node_modules/validator/lib/isMultibyte.js ***!
+  \***************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = isMultibyte;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+/* eslint-disable no-control-regex */
+var multibyte = /[^\x00-\x7F]/;
+/* eslint-enable no-control-regex */
+
+function isMultibyte(str) {
+  (0, _assertString2.default)(str);
+  return multibyte.test(str);
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/isNumeric.js":
+/*!*************************************************!*\
+  !*** ./node_modules/validator/lib/isNumeric.js ***!
+  \*************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = isNumeric;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+var numeric = /^[+-]?([0-9]*[.])?[0-9]+$/;
+
+function isNumeric(str) {
+  (0, _assertString2.default)(str);
+  return numeric.test(str);
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/isPort.js":
+/*!**********************************************!*\
+  !*** ./node_modules/validator/lib/isPort.js ***!
+  \**********************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = isPort;
+
+var _isInt = __webpack_require__(/*! ./isInt */ "./node_modules/validator/lib/isInt.js");
+
+var _isInt2 = _interopRequireDefault(_isInt);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function isPort(str) {
+  return (0, _isInt2.default)(str, { min: 0, max: 65535 });
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/isPostalCode.js":
+/*!****************************************************!*\
+  !*** ./node_modules/validator/lib/isPostalCode.js ***!
+  \****************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.locales = undefined;
+
+exports.default = function (str, locale) {
+  (0, _assertString2.default)(str);
+  if (locale in patterns) {
+    return patterns[locale].test(str);
+  } else if (locale === 'any') {
+    for (var key in patterns) {
+      if (patterns.hasOwnProperty(key)) {
+        var pattern = patterns[key];
+        if (pattern.test(str)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+  throw new Error('Invalid locale \'' + locale + '\'');
+};
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+// common patterns
+var threeDigit = /^\d{3}$/;
+var fourDigit = /^\d{4}$/;
+var fiveDigit = /^\d{5}$/;
+var sixDigit = /^\d{6}$/;
+
+var patterns = {
+  AT: fourDigit,
+  AU: fourDigit,
+  BE: fourDigit,
+  BG: fourDigit,
+  CA: /^[ABCEGHJKLMNPRSTVXY]\d[ABCEGHJ-NPRSTV-Z][\s\-]?\d[ABCEGHJ-NPRSTV-Z]\d$/i,
+  CH: fourDigit,
+  CZ: /^\d{3}\s?\d{2}$/,
+  DE: fiveDigit,
+  DK: fourDigit,
+  DZ: fiveDigit,
+  ES: fiveDigit,
+  FI: fiveDigit,
+  FR: /^\d{2}\s?\d{3}$/,
+  GB: /^(gir\s?0aa|[a-z]{1,2}\d[\da-z]?\s?(\d[a-z]{2})?)$/i,
+  GR: /^\d{3}\s?\d{2}$/,
+  IL: fiveDigit,
+  IN: sixDigit,
+  IS: threeDigit,
+  IT: fiveDigit,
+  JP: /^\d{3}\-\d{4}$/,
+  KE: fiveDigit,
+  LI: /^(948[5-9]|949[0-7])$/,
+  MX: fiveDigit,
+  NL: /^\d{4}\s?[a-z]{2}$/i,
+  NO: fourDigit,
+  PL: /^\d{2}\-\d{3}$/,
+  PT: /^\d{4}\-\d{3}?$/,
+  RO: sixDigit,
+  RU: sixDigit,
+  SA: fiveDigit,
+  SE: /^\d{3}\s?\d{2}$/,
+  SK: /^\d{3}\s?\d{2}$/,
+  TW: /^\d{3}(\d{2})?$/,
+  US: /^\d{5}(-\d{4})?$/,
+  ZA: fourDigit,
+  ZM: fiveDigit
+};
+
+var locales = exports.locales = Object.keys(patterns);
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/isRFC3339.js":
+/*!*************************************************!*\
+  !*** ./node_modules/validator/lib/isRFC3339.js ***!
+  \*************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = isRFC3339;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+/* Based on https://tools.ietf.org/html/rfc3339#section-5.6 */
+
+var dateFullYear = /[0-9]{4}/;
+var dateMonth = /(0[1-9]|1[0-2])/;
+var dateMDay = /([12]\d|0[1-9]|3[01])/;
+
+var timeHour = /([01][0-9]|2[0-3])/;
+var timeMinute = /[0-5][0-9]/;
+var timeSecond = /([0-5][0-9]|60)/;
+
+var timeSecFrac = /(\.[0-9]+)?/;
+var timeNumOffset = new RegExp('[-+]' + timeHour.source + ':' + timeMinute.source);
+var timeOffset = new RegExp('([zZ]|' + timeNumOffset.source + ')');
+
+var partialTime = new RegExp(timeHour.source + ':' + timeMinute.source + ':' + timeSecond.source + timeSecFrac.source);
+
+var fullDate = new RegExp(dateFullYear.source + '-' + dateMonth.source + '-' + dateMDay.source);
+var fullTime = new RegExp('' + partialTime.source + timeOffset.source);
+
+var rfc3339 = new RegExp(fullDate.source + '[ tT]' + fullTime.source);
+
+function isRFC3339(str) {
+  (0, _assertString2.default)(str);
+  return rfc3339.test(str);
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/isSurrogatePair.js":
+/*!*******************************************************!*\
+  !*** ./node_modules/validator/lib/isSurrogatePair.js ***!
+  \*******************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = isSurrogatePair;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+var surrogatePair = /[\uD800-\uDBFF][\uDC00-\uDFFF]/;
+
+function isSurrogatePair(str) {
+  (0, _assertString2.default)(str);
+  return surrogatePair.test(str);
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/isURL.js":
+/*!*********************************************!*\
+  !*** ./node_modules/validator/lib/isURL.js ***!
+  \*********************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = isURL;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+var _isFQDN = __webpack_require__(/*! ./isFQDN */ "./node_modules/validator/lib/isFQDN.js");
+
+var _isFQDN2 = _interopRequireDefault(_isFQDN);
+
+var _isIP = __webpack_require__(/*! ./isIP */ "./node_modules/validator/lib/isIP.js");
+
+var _isIP2 = _interopRequireDefault(_isIP);
+
+var _merge = __webpack_require__(/*! ./util/merge */ "./node_modules/validator/lib/util/merge.js");
+
+var _merge2 = _interopRequireDefault(_merge);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+var default_url_options = {
+  protocols: ['http', 'https', 'ftp'],
+  require_tld: true,
+  require_protocol: false,
+  require_host: true,
+  require_valid_protocol: true,
+  allow_underscores: false,
+  allow_trailing_dot: false,
+  allow_protocol_relative_urls: false
+};
+
+var wrapped_ipv6 = /^\[([^\]]+)\](?::([0-9]+))?$/;
+
+function isRegExp(obj) {
+  return Object.prototype.toString.call(obj) === '[object RegExp]';
+}
+
+function checkHost(host, matches) {
+  for (var i = 0; i < matches.length; i++) {
+    var match = matches[i];
+    if (host === match || isRegExp(match) && match.test(host)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function isURL(url, options) {
+  (0, _assertString2.default)(url);
+  if (!url || url.length >= 2083 || /[\s<>]/.test(url)) {
+    return false;
+  }
+  if (url.indexOf('mailto:') === 0) {
+    return false;
+  }
+  options = (0, _merge2.default)(options, default_url_options);
+  var protocol = void 0,
+      auth = void 0,
+      host = void 0,
+      hostname = void 0,
+      port = void 0,
+      port_str = void 0,
+      split = void 0,
+      ipv6 = void 0;
+
+  split = url.split('#');
+  url = split.shift();
+
+  split = url.split('?');
+  url = split.shift();
+
+  split = url.split('://');
+  if (split.length > 1) {
+    protocol = split.shift();
+    if (options.require_valid_protocol && options.protocols.indexOf(protocol) === -1) {
+      return false;
+    }
+  } else if (options.require_protocol) {
+    return false;
+  } else if (options.allow_protocol_relative_urls && url.substr(0, 2) === '//') {
+    split[0] = url.substr(2);
+  }
+  url = split.join('://');
+
+  if (url === '') {
+    return false;
+  }
+
+  split = url.split('/');
+  url = split.shift();
+
+  if (url === '' && !options.require_host) {
+    return true;
+  }
+
+  split = url.split('@');
+  if (split.length > 1) {
+    auth = split.shift();
+    if (auth.indexOf(':') >= 0 && auth.split(':').length > 2) {
+      return false;
+    }
+  }
+  hostname = split.join('@');
+
+  port_str = null;
+  ipv6 = null;
+  var ipv6_match = hostname.match(wrapped_ipv6);
+  if (ipv6_match) {
+    host = '';
+    ipv6 = ipv6_match[1];
+    port_str = ipv6_match[2] || null;
+  } else {
+    split = hostname.split(':');
+    host = split.shift();
+    if (split.length) {
+      port_str = split.join(':');
+    }
+  }
+
+  if (port_str !== null) {
+    port = parseInt(port_str, 10);
+    if (!/^[0-9]+$/.test(port_str) || port <= 0 || port > 65535) {
+      return false;
+    }
+  }
+
+  if (!(0, _isIP2.default)(host) && !(0, _isFQDN2.default)(host, options) && (!ipv6 || !(0, _isIP2.default)(ipv6, 6))) {
+    return false;
+  }
+
+  host = host || ipv6;
+
+  if (options.host_whitelist && !checkHost(host, options.host_whitelist)) {
+    return false;
+  }
+  if (options.host_blacklist && checkHost(host, options.host_blacklist)) {
+    return false;
+  }
+
+  return true;
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/isUUID.js":
+/*!**********************************************!*\
+  !*** ./node_modules/validator/lib/isUUID.js ***!
+  \**********************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = isUUID;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+var uuid = {
+  3: /^[0-9A-F]{8}-[0-9A-F]{4}-3[0-9A-F]{3}-[0-9A-F]{4}-[0-9A-F]{12}$/i,
+  4: /^[0-9A-F]{8}-[0-9A-F]{4}-4[0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}$/i,
+  5: /^[0-9A-F]{8}-[0-9A-F]{4}-5[0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}$/i,
+  all: /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/i
+};
+
+function isUUID(str) {
+  var version = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 'all';
+
+  (0, _assertString2.default)(str);
+  var pattern = uuid[version];
+  return pattern && pattern.test(str);
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/isUppercase.js":
+/*!***************************************************!*\
+  !*** ./node_modules/validator/lib/isUppercase.js ***!
+  \***************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = isUppercase;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function isUppercase(str) {
+  (0, _assertString2.default)(str);
+  return str === str.toUpperCase();
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/isVariableWidth.js":
+/*!*******************************************************!*\
+  !*** ./node_modules/validator/lib/isVariableWidth.js ***!
+  \*******************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = isVariableWidth;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+var _isFullWidth = __webpack_require__(/*! ./isFullWidth */ "./node_modules/validator/lib/isFullWidth.js");
+
+var _isHalfWidth = __webpack_require__(/*! ./isHalfWidth */ "./node_modules/validator/lib/isHalfWidth.js");
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function isVariableWidth(str) {
+  (0, _assertString2.default)(str);
+  return _isFullWidth.fullWidth.test(str) && _isHalfWidth.halfWidth.test(str);
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/isWhitelisted.js":
+/*!*****************************************************!*\
+  !*** ./node_modules/validator/lib/isWhitelisted.js ***!
+  \*****************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = isWhitelisted;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function isWhitelisted(str, chars) {
+  (0, _assertString2.default)(str);
+  for (var i = str.length - 1; i >= 0; i--) {
+    if (chars.indexOf(str[i]) === -1) {
+      return false;
+    }
+  }
+  return true;
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/ltrim.js":
+/*!*********************************************!*\
+  !*** ./node_modules/validator/lib/ltrim.js ***!
+  \*********************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = ltrim;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function ltrim(str, chars) {
+  (0, _assertString2.default)(str);
+  var pattern = chars ? new RegExp('^[' + chars + ']+', 'g') : /^\s+/g;
+  return str.replace(pattern, '');
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/matches.js":
+/*!***********************************************!*\
+  !*** ./node_modules/validator/lib/matches.js ***!
+  \***********************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = matches;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function matches(str, pattern, modifiers) {
+  (0, _assertString2.default)(str);
+  if (Object.prototype.toString.call(pattern) !== '[object RegExp]') {
+    pattern = new RegExp(pattern, modifiers);
+  }
+  return pattern.test(str);
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/normalizeEmail.js":
+/*!******************************************************!*\
+  !*** ./node_modules/validator/lib/normalizeEmail.js ***!
+  \******************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = normalizeEmail;
+
+var _merge = __webpack_require__(/*! ./util/merge */ "./node_modules/validator/lib/util/merge.js");
+
+var _merge2 = _interopRequireDefault(_merge);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+var default_normalize_email_options = {
+  // The following options apply to all email addresses
+  // Lowercases the local part of the email address.
+  // Please note this may violate RFC 5321 as per http://stackoverflow.com/a/9808332/192024).
+  // The domain is always lowercased, as per RFC 1035
+  all_lowercase: true,
+
+  // The following conversions are specific to GMail
+  // Lowercases the local part of the GMail address (known to be case-insensitive)
+  gmail_lowercase: true,
+  // Removes dots from the local part of the email address, as that's ignored by GMail
+  gmail_remove_dots: true,
+  // Removes the subaddress (e.g. "+foo") from the email address
+  gmail_remove_subaddress: true,
+  // Conversts the googlemail.com domain to gmail.com
+  gmail_convert_googlemaildotcom: true,
+
+  // The following conversions are specific to Outlook.com / Windows Live / Hotmail
+  // Lowercases the local part of the Outlook.com address (known to be case-insensitive)
+  outlookdotcom_lowercase: true,
+  // Removes the subaddress (e.g. "+foo") from the email address
+  outlookdotcom_remove_subaddress: true,
+
+  // The following conversions are specific to Yahoo
+  // Lowercases the local part of the Yahoo address (known to be case-insensitive)
+  yahoo_lowercase: true,
+  // Removes the subaddress (e.g. "-foo") from the email address
+  yahoo_remove_subaddress: true,
+
+  // The following conversions are specific to Yandex
+  // Lowercases the local part of the Yandex address (known to be case-insensitive)
+  yandex_lowercase: true,
+
+  // The following conversions are specific to iCloud
+  // Lowercases the local part of the iCloud address (known to be case-insensitive)
+  icloud_lowercase: true,
+  // Removes the subaddress (e.g. "+foo") from the email address
+  icloud_remove_subaddress: true
+};
+
+// List of domains used by iCloud
+var icloud_domains = ['icloud.com', 'me.com'];
+
+// List of domains used by Outlook.com and its predecessors
+// This list is likely incomplete.
+// Partial reference:
+// https://blogs.office.com/2013/04/17/outlook-com-gets-two-step-verification-sign-in-by-alias-and-new-international-domains/
+var outlookdotcom_domains = ['hotmail.at', 'hotmail.be', 'hotmail.ca', 'hotmail.cl', 'hotmail.co.il', 'hotmail.co.nz', 'hotmail.co.th', 'hotmail.co.uk', 'hotmail.com', 'hotmail.com.ar', 'hotmail.com.au', 'hotmail.com.br', 'hotmail.com.gr', 'hotmail.com.mx', 'hotmail.com.pe', 'hotmail.com.tr', 'hotmail.com.vn', 'hotmail.cz', 'hotmail.de', 'hotmail.dk', 'hotmail.es', 'hotmail.fr', 'hotmail.hu', 'hotmail.id', 'hotmail.ie', 'hotmail.in', 'hotmail.it', 'hotmail.jp', 'hotmail.kr', 'hotmail.lv', 'hotmail.my', 'hotmail.ph', 'hotmail.pt', 'hotmail.sa', 'hotmail.sg', 'hotmail.sk', 'live.be', 'live.co.uk', 'live.com', 'live.com.ar', 'live.com.mx', 'live.de', 'live.es', 'live.eu', 'live.fr', 'live.it', 'live.nl', 'msn.com', 'outlook.at', 'outlook.be', 'outlook.cl', 'outlook.co.il', 'outlook.co.nz', 'outlook.co.th', 'outlook.com', 'outlook.com.ar', 'outlook.com.au', 'outlook.com.br', 'outlook.com.gr', 'outlook.com.pe', 'outlook.com.tr', 'outlook.com.vn', 'outlook.cz', 'outlook.de', 'outlook.dk', 'outlook.es', 'outlook.fr', 'outlook.hu', 'outlook.id', 'outlook.ie', 'outlook.in', 'outlook.it', 'outlook.jp', 'outlook.kr', 'outlook.lv', 'outlook.my', 'outlook.ph', 'outlook.pt', 'outlook.sa', 'outlook.sg', 'outlook.sk', 'passport.com'];
+
+// List of domains used by Yahoo Mail
+// This list is likely incomplete
+var yahoo_domains = ['rocketmail.com', 'yahoo.ca', 'yahoo.co.uk', 'yahoo.com', 'yahoo.de', 'yahoo.fr', 'yahoo.in', 'yahoo.it', 'ymail.com'];
+
+// List of domains used by yandex.ru
+var yandex_domains = ['yandex.ru', 'yandex.ua', 'yandex.kz', 'yandex.com', 'yandex.by', 'ya.ru'];
+
+// replace single dots, but not multiple consecutive dots
+function dotsReplacer(match) {
+  if (match.length > 1) {
+    return match;
+  }
+  return '';
+}
+
+function normalizeEmail(email, options) {
+  options = (0, _merge2.default)(options, default_normalize_email_options);
+
+  var raw_parts = email.split('@');
+  var domain = raw_parts.pop();
+  var user = raw_parts.join('@');
+  var parts = [user, domain];
+
+  // The domain is always lowercased, as it's case-insensitive per RFC 1035
+  parts[1] = parts[1].toLowerCase();
+
+  if (parts[1] === 'gmail.com' || parts[1] === 'googlemail.com') {
+    // Address is GMail
+    if (options.gmail_remove_subaddress) {
+      parts[0] = parts[0].split('+')[0];
+    }
+    if (options.gmail_remove_dots) {
+      // this does not replace consecutive dots like example..email@gmail.com
+      parts[0] = parts[0].replace(/\.+/g, dotsReplacer);
+    }
+    if (!parts[0].length) {
+      return false;
+    }
+    if (options.all_lowercase || options.gmail_lowercase) {
+      parts[0] = parts[0].toLowerCase();
+    }
+    parts[1] = options.gmail_convert_googlemaildotcom ? 'gmail.com' : parts[1];
+  } else if (~icloud_domains.indexOf(parts[1])) {
+    // Address is iCloud
+    if (options.icloud_remove_subaddress) {
+      parts[0] = parts[0].split('+')[0];
+    }
+    if (!parts[0].length) {
+      return false;
+    }
+    if (options.all_lowercase || options.icloud_lowercase) {
+      parts[0] = parts[0].toLowerCase();
+    }
+  } else if (~outlookdotcom_domains.indexOf(parts[1])) {
+    // Address is Outlook.com
+    if (options.outlookdotcom_remove_subaddress) {
+      parts[0] = parts[0].split('+')[0];
+    }
+    if (!parts[0].length) {
+      return false;
+    }
+    if (options.all_lowercase || options.outlookdotcom_lowercase) {
+      parts[0] = parts[0].toLowerCase();
+    }
+  } else if (~yahoo_domains.indexOf(parts[1])) {
+    // Address is Yahoo
+    if (options.yahoo_remove_subaddress) {
+      var components = parts[0].split('-');
+      parts[0] = components.length > 1 ? components.slice(0, -1).join('-') : components[0];
+    }
+    if (!parts[0].length) {
+      return false;
+    }
+    if (options.all_lowercase || options.yahoo_lowercase) {
+      parts[0] = parts[0].toLowerCase();
+    }
+  } else if (~yandex_domains.indexOf(parts[1])) {
+    if (options.all_lowercase || options.yandex_lowercase) {
+      parts[0] = parts[0].toLowerCase();
+    }
+    parts[1] = 'yandex.ru'; // all yandex domains are equal, 1st preffered
+  } else if (options.all_lowercase) {
+    // Any other address
+    parts[0] = parts[0].toLowerCase();
+  }
+  return parts.join('@');
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/rtrim.js":
+/*!*********************************************!*\
+  !*** ./node_modules/validator/lib/rtrim.js ***!
+  \*********************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = rtrim;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function rtrim(str, chars) {
+  (0, _assertString2.default)(str);
+  var pattern = chars ? new RegExp('[' + chars + ']') : /\s/;
+
+  var idx = str.length - 1;
+  while (idx >= 0 && pattern.test(str[idx])) {
+    idx--;
+  }
+
+  return idx < str.length ? str.substr(0, idx + 1) : str;
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/stripLow.js":
+/*!************************************************!*\
+  !*** ./node_modules/validator/lib/stripLow.js ***!
+  \************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = stripLow;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+var _blacklist = __webpack_require__(/*! ./blacklist */ "./node_modules/validator/lib/blacklist.js");
+
+var _blacklist2 = _interopRequireDefault(_blacklist);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function stripLow(str, keep_new_lines) {
+  (0, _assertString2.default)(str);
+  var chars = keep_new_lines ? '\\x00-\\x09\\x0B\\x0C\\x0E-\\x1F\\x7F' : '\\x00-\\x1F\\x7F';
+  return (0, _blacklist2.default)(str, chars);
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/toBoolean.js":
+/*!*************************************************!*\
+  !*** ./node_modules/validator/lib/toBoolean.js ***!
+  \*************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = toBoolean;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function toBoolean(str, strict) {
+  (0, _assertString2.default)(str);
+  if (strict) {
+    return str === '1' || str === 'true';
+  }
+  return str !== '0' && str !== 'false' && str !== '';
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/toDate.js":
+/*!**********************************************!*\
+  !*** ./node_modules/validator/lib/toDate.js ***!
+  \**********************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = toDate;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function toDate(date) {
+  (0, _assertString2.default)(date);
+  date = Date.parse(date);
+  return !isNaN(date) ? new Date(date) : null;
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/toFloat.js":
+/*!***********************************************!*\
+  !*** ./node_modules/validator/lib/toFloat.js ***!
+  \***********************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = toFloat;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function toFloat(str) {
+  (0, _assertString2.default)(str);
+  return parseFloat(str);
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/toInt.js":
+/*!*********************************************!*\
+  !*** ./node_modules/validator/lib/toInt.js ***!
+  \*********************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = toInt;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function toInt(str, radix) {
+  (0, _assertString2.default)(str);
+  return parseInt(str, radix || 10);
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/trim.js":
+/*!********************************************!*\
+  !*** ./node_modules/validator/lib/trim.js ***!
+  \********************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = trim;
+
+var _rtrim = __webpack_require__(/*! ./rtrim */ "./node_modules/validator/lib/rtrim.js");
+
+var _rtrim2 = _interopRequireDefault(_rtrim);
+
+var _ltrim = __webpack_require__(/*! ./ltrim */ "./node_modules/validator/lib/ltrim.js");
+
+var _ltrim2 = _interopRequireDefault(_ltrim);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function trim(str, chars) {
+  return (0, _rtrim2.default)((0, _ltrim2.default)(str, chars), chars);
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/unescape.js":
+/*!************************************************!*\
+  !*** ./node_modules/validator/lib/unescape.js ***!
+  \************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = unescape;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function unescape(str) {
+  (0, _assertString2.default)(str);
+  return str.replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#x27;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#x2F;/g, '/').replace(/&#x5C;/g, '\\').replace(/&#96;/g, '`');
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/util/assertString.js":
+/*!*********************************************************!*\
+  !*** ./node_modules/validator/lib/util/assertString.js ***!
+  \*********************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = assertString;
+function assertString(input) {
+  var isString = typeof input === 'string' || input instanceof String;
+
+  if (!isString) {
+    throw new TypeError('This library (validator.js) validates strings only');
+  }
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/util/merge.js":
+/*!**************************************************!*\
+  !*** ./node_modules/validator/lib/util/merge.js ***!
+  \**************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = merge;
+function merge() {
+  var obj = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
+  var defaults = arguments[1];
+
+  for (var key in defaults) {
+    if (typeof obj[key] === 'undefined') {
+      obj[key] = defaults[key];
+    }
+  }
+  return obj;
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/util/toString.js":
+/*!*****************************************************!*\
+  !*** ./node_modules/validator/lib/util/toString.js ***!
+  \*****************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
+
+exports.default = toString;
+function toString(input) {
+  if ((typeof input === 'undefined' ? 'undefined' : _typeof(input)) === 'object' && input !== null) {
+    if (typeof input.toString === 'function') {
+      input = input.toString();
+    } else {
+      input = '[object Object]';
+    }
+  } else if (input === null || typeof input === 'undefined' || isNaN(input) && !input.length) {
+    input = '';
+  }
+  return String(input);
+}
+module.exports = exports['default'];
+
+/***/ }),
+
+/***/ "./node_modules/validator/lib/whitelist.js":
+/*!*************************************************!*\
+  !*** ./node_modules/validator/lib/whitelist.js ***!
+  \*************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = whitelist;
+
+var _assertString = __webpack_require__(/*! ./util/assertString */ "./node_modules/validator/lib/util/assertString.js");
+
+var _assertString2 = _interopRequireDefault(_assertString);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function whitelist(str, chars) {
+  (0, _assertString2.default)(str);
+  return str.replace(new RegExp('[^' + chars + ']+', 'g'), '');
+}
+module.exports = exports['default'];
 
 /***/ }),
 

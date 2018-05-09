@@ -40,7 +40,8 @@
     "redux-logger": "^3.0.6",
     "redux-thunk": "^2.2.0",
     "scrollreveal": "^3.3.6",
-    "throttle-debounce": "^1.0.1"
+    "throttle-debounce": "^1.0.1",
+    "validator": "^10.1.0"
   },
   "devDependencies": {
     "babel-core": "^6.26.0",

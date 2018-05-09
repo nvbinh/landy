@@ -142,6 +142,27 @@
 /************************************************************************/
 /******/ ({
 
+/***/ "./node_modules/css-loader/index.js??ref--6-0!./node_modules/postcss-loader/lib/index.js!./src/app/pages/forms/Login.Form.pcss":
+/*!*******************************************************************************************************************!*\
+  !*** ./node_modules/css-loader??ref--6-0!./node_modules/postcss-loader/lib!./src/app/pages/forms/Login.Form.pcss ***!
+  \*******************************************************************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+exports = module.exports = __webpack_require__(/*! ../../../../node_modules/css-loader/lib/css-base.js */ "./node_modules/css-loader/lib/css-base.js")(false);
+// imports
+
+
+// module
+exports.push([module.i, ".src-app-pages-forms-Login-Form__errors--myTvh {\r\n  color: red;\r\n}", ""]);
+
+// exports
+exports.locals = {
+	"errors": "src-app-pages-forms-Login-Form__errors--myTvh"
+};
+
+/***/ }),
+
 /***/ "./node_modules/css-loader/index.js??ref--6-0!./node_modules/postcss-loader/lib/index.js!./src/postcss/layout.pcss":
 /*!*******************************************************************************************************!*\
   !*** ./node_modules/css-loader??ref--6-0!./node_modules/postcss-loader/lib!./src/postcss/layout.pcss ***!
@@ -249,9 +270,7 @@ var App = function (_React$Component) {
 
   _createClass(App, [{
     key: "componentWillMount",
-    value: function componentWillMount() {
-      this.props.fetchUsedNeeded("bing@gmail.com", "bing");
-    }
+    value: function componentWillMount() {}
   }, {
     key: "render",
     value: function render() {
@@ -301,7 +320,7 @@ var App = function (_React$Component) {
   return App;
 }(_react2.default.Component);
 
-exports.default = (0, _reactRouterDom.withRouter)((0, _reactRedux.connect)(null, userActions)(App));
+exports.default = (0, _reactRouterDom.withRouter)(App);
 
 /***/ }),
 
@@ -570,8 +589,6 @@ Object.defineProperty(exports, "__esModule", {
   value: true
 });
 
-var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
-
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 
 var _react = __webpack_require__(/*! react */ "./node_modules/react/index.js");
@@ -582,11 +599,9 @@ var _propTypes = __webpack_require__(/*! prop-types */ "./node_modules/prop-type
 
 var _propTypes2 = _interopRequireDefault(_propTypes);
 
-var _reactRedux = __webpack_require__(/*! react-redux */ "./node_modules/react-redux/es/index.js");
+var _Login = __webpack_require__(/*! ./forms/Login.Form */ "./src/app/pages/forms/Login.Form.js");
 
-var _reactValidateForm = __webpack_require__(/*! react-validate-form */ "./node_modules/react-validate-form/dist/index.js");
-
-var _reactValidateForm2 = _interopRequireDefault(_reactValidateForm);
+var _Login2 = _interopRequireDefault(_Login);
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -595,6 +610,8 @@ function _classCallCheck(instance, Constructor) { if (!(instance instanceof Cons
 function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
 
 function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+// import {connect} from "react-redux";
+
 
 var LoginPage = function (_React$Component) {
   _inherits(LoginPage, _React$Component);
@@ -608,53 +625,10 @@ var LoginPage = function (_React$Component) {
   _createClass(LoginPage, [{
     key: "render",
     value: function render() {
-      var rules = {
-        required: {
-          message: function message(field) {
-            return field + " should be required";
-          }
-        }
-      };
-
-      var validations = {
-        inputEmail: ["required", "email"],
-        inputPassword: ["required", "min:3", "max:10"]
-      };
-
       return _react2.default.createElement(
         "div",
         { className: "col-md-6 col-md-offset-3" },
-        _react2.default.createElement(
-          _reactValidateForm2.default,
-          {
-            validations: validations,
-            rules: rules
-          },
-          _react2.default.createElement(
-            "form",
-            null,
-            _react2.default.createElement(
-              "div",
-              { className: "form-group" },
-              _react2.default.createElement(
-                "label",
-                { htmlFor: "inputEmail" },
-                "Email: "
-              ),
-              _react2.default.createElement("input", { type: "email", className: "form-control", name: "inputEmail", id: "inputEmail", placeholder: "Enter email" })
-            ),
-            _react2.default.createElement(
-              "div",
-              { className: "form-group" },
-              _react2.default.createElement(
-                "label",
-                { htmlFor: "inputPassword" },
-                "Password"
-              ),
-              _react2.default.createElement("input", { type: "password", className: "form-control", name: "inputPassword", id: "inputPassword", placeholder: "Enter password" })
-            )
-          )
-        )
+        _react2.default.createElement(_Login2.default, null)
       );
     }
   }]);
@@ -662,11 +636,191 @@ var LoginPage = function (_React$Component) {
   return LoginPage;
 }(_react2.default.Component);
 
+// const mapStateToProps = (state, props) => {
+//   return {
+//     ...props
+//   };
+// };
+
+exports.default = LoginPage;
+
+/***/ }),
+
+/***/ "./src/app/pages/forms/Login.Form.js":
+/*!*******************************************!*\
+  !*** ./src/app/pages/forms/Login.Form.js ***!
+  \*******************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+var _react = __webpack_require__(/*! react */ "./node_modules/react/index.js");
+
+var _react2 = _interopRequireDefault(_react);
+
+var _reactReduxForm = __webpack_require__(/*! react-redux-form */ "./node_modules/react-redux-form/lib/index.js");
+
+var _reactRedux = __webpack_require__(/*! react-redux */ "./node_modules/react-redux/es/index.js");
+
+var _LoginForm = __webpack_require__(/*! ./Login.Form.pcss */ "./src/app/pages/forms/Login.Form.pcss");
+
+var _LoginForm2 = _interopRequireDefault(_LoginForm);
+
+var _Users = __webpack_require__(/*! ../../redux/actions/Users */ "./src/app/redux/actions/Users.js");
+
+var userActions = _interopRequireWildcard(_Users);
+
+var _validator = __webpack_require__(/*! validator */ "./node_modules/validator/index.js");
+
+var _validator2 = _interopRequireDefault(_validator);
+
+function _interopRequireWildcard(obj) { if (obj && obj.__esModule) { return obj; } else { var newObj = {}; if (obj != null) { for (var key in obj) { if (Object.prototype.hasOwnProperty.call(obj, key)) newObj[key] = obj[key]; } } newObj.default = obj; return newObj; } }
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+var LoginForm = function (_React$Component) {
+  _inherits(LoginForm, _React$Component);
+
+  function LoginForm() {
+    _classCallCheck(this, LoginForm);
+
+    return _possibleConstructorReturn(this, (LoginForm.__proto__ || Object.getPrototypeOf(LoginForm)).apply(this, arguments));
+  }
+
+  _createClass(LoginForm, [{
+    key: "handleSubmit",
+    value: function handleSubmit(userinfo) {
+      console.log(userinfo);
+      this.props.fetchUsedNeeded("bing@gmail.com", "bing");
+    }
+  }, {
+    key: "render",
+    value: function render() {
+      var _this2 = this;
+
+      var _isEmail = function _isEmail(val) {
+        return _validator2.default.isEmail(val);
+      };
+
+      return _react2.default.createElement(
+        _reactReduxForm.Form,
+        {
+          model: "userinfo",
+          onSubmit: function onSubmit(userinfo) {
+            return _this2.handleSubmit(userinfo);
+          }
+        },
+        _react2.default.createElement(_reactReduxForm.Errors, {
+          className: _LoginForm2.default.errors + " test",
+          model: ".firstName",
+          show: "touched",
+          messages: {
+            valueMissing: 'Username is required',
+            maxLength: 'Must be 15 characters or less',
+            isEmail: 'Email is not correct format'
+          }
+        }),
+        _react2.default.createElement(
+          "div",
+          { className: "form-group" },
+          _react2.default.createElement(
+            "label",
+            { htmlFor: "userinfo.firstName" },
+            "Email: "
+          ),
+          _react2.default.createElement(_reactReduxForm.Control.text, {
+            model: ".firstName",
+            className: "form-control",
+            placeholder: "Enter email",
+            required: true,
+            validators: {
+              maxLength: function maxLength(val) {
+                return val.length <= 15;
+              },
+              isEmail: function isEmail(val) {
+                return _isEmail(val);
+              }
+            },
+            validateOn: "blur" })
+        ),
+        _react2.default.createElement(
+          "div",
+          { className: "form-group" },
+          _react2.default.createElement(
+            "label",
+            { htmlFor: "lastName" },
+            "Password: "
+          ),
+          _react2.default.createElement(_reactReduxForm.Control.text, {
+            model: ".lastName",
+            className: "form-control",
+            placeholder: "Enter password" })
+        ),
+        _react2.default.createElement(
+          "button",
+          { type: "submit", className: "btn btn-default" },
+          "Login"
+        )
+      );
+    }
+  }]);
+
+  return LoginForm;
+}(_react2.default.Component);
+
 var mapStateToProps = function mapStateToProps(state, props) {
-  return _extends({}, props);
+  return _extends({}, props, {
+    userinfo: state.Users.userinfo
+  });
 };
 
-exports.default = (0, _reactRedux.connect)(mapStateToProps)(LoginPage);
+exports.default = (0, _reactRedux.connect)(mapStateToProps, userActions)(LoginForm);
+
+/***/ }),
+
+/***/ "./src/app/pages/forms/Login.Form.pcss":
+/*!*********************************************!*\
+  !*** ./src/app/pages/forms/Login.Form.pcss ***!
+  \*********************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+
+var content = __webpack_require__(/*! !../../../../node_modules/css-loader??ref--6-0!../../../../node_modules/postcss-loader/lib!./Login.Form.pcss */ "./node_modules/css-loader/index.js??ref--6-0!./node_modules/postcss-loader/lib/index.js!./src/app/pages/forms/Login.Form.pcss");
+
+if(typeof content === 'string') content = [[module.i, content, '']];
+
+var transform;
+var insertInto;
+
+
+
+var options = {"hmr":true}
+
+options.transform = transform
+options.insertInto = undefined;
+
+var update = __webpack_require__(/*! ../../../../node_modules/style-loader/lib/addStyles.js */ "./node_modules/style-loader/lib/addStyles.js")(content, options);
+
+if(content.locals) module.exports = content.locals;
+
+if(false) {}
 
 /***/ }),
 
@@ -788,9 +942,13 @@ Object.defineProperty(exports, "__esModule", {
   value: true
 });
 
+var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
+
 var _redux = __webpack_require__(/*! redux */ "./node_modules/redux/es/index.js");
 
 var _reactRouterRedux = __webpack_require__(/*! react-router-redux */ "./node_modules/react-router-redux/lib/index.js");
+
+var _reactReduxForm = __webpack_require__(/*! react-redux-form */ "./node_modules/react-redux-form/lib/index.js");
 
 var _Users = __webpack_require__(/*! ./Users */ "./src/app/redux/reducers/Users.js");
 
@@ -798,10 +956,18 @@ var _Users2 = _interopRequireDefault(_Users);
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
-var rootReducer = (0, _redux.combineReducers)({
-  Users: _Users2.default,
+var initialUserState = {
+  firstName: "",
+  lastName: ""
+};
+
+var formStates = (0, _reactReduxForm.createForms)({ userinfo: initialUserState });
+
+var rootReducer = (0, _redux.combineReducers)(_extends({
+  Users: _Users2.default
+}, (0, _reactReduxForm.createForms)({ userinfo: initialUserState }), {
   routing: _reactRouterRedux.routerReducer
-});
+}));
 
 exports.default = rootReducer;
 
@@ -945,12 +1111,9 @@ var login = function () {
 
           case 3:
             users = _context.sent;
-
-
-            debugger;
             return _context.abrupt("return", users);
 
-          case 6:
+          case 5:
           case "end":
             return _context.stop();
         }
@@ -1080,7 +1243,7 @@ if(false) {}
 /***/ (function(module, exports, __webpack_require__) {
 
 __webpack_require__(/*! babel-polyfill */"./node_modules/babel-polyfill/lib/index.js");
-module.exports = __webpack_require__(/*! D:\My Working - HERE\LandTradeReact\landy\client\src/Main.jsx */"./src/Main.jsx");
+module.exports = __webpack_require__(/*! d:\My Working - HERE\LandTradeReact\landy\client\src/Main.jsx */"./src/Main.jsx");
 
 
 /***/ })
