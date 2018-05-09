@@ -12,7 +12,6 @@ const login = async (username, password) => {
   const credentials = {email: username, password: password};
   const users = await request({method: "post", url: "api/Users/login", data: credentials});
 
-  debugger;
   return users;
 };
 
