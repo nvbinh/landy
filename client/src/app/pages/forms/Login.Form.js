@@ -8,7 +8,7 @@ import validator from "validator";
 class LoginForm extends React.Component {
   handleSubmit(userinfo) {
     console.log(userinfo);
-    this.props.fetchUsedNeeded("bing@gmail.com", "bing");
+    this.props.login("bing@gmail.com", "bing");
   }
 
   render() {
@@ -22,6 +22,7 @@ class LoginForm extends React.Component {
 
     return (
       <Form
+        hideNativeErrors
         model="userinfo"
         onSubmit={(userinfo) => this.handleSubmit(userinfo)}
       >

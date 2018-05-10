@@ -14,10 +14,11 @@ const fetchUser = (username, password) => (dispatch) => {
   // const users = await request({method: "post", url: "api/Users/login", data: credentials});
 
   UserService.login(username, password).then(user => {
+    localStorage.setItem("user", user);
     dispatch(fetchUserSuccess(user));
   });
 };
 
-export const fetchUsedNeeded = (username, password) => (dispatch) => {
+export const login = (username, password) => (dispatch) => {
   dispatch(fetchUser(username, password));
 };

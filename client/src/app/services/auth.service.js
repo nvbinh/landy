@@ -6,7 +6,7 @@ export function authHeader() {
   const user = JSON.parse(localStorage.getItem("user"));
   
   if (user && user.token) {
-    const authorization = ["Authorization:", user.token].join(" ");
+    const authorization = ["Authorization:", user.id].join(" ");
     return {authorization};
   } else {
     return {};
