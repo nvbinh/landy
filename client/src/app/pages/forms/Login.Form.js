@@ -16,13 +16,17 @@ class LoginForm extends React.Component {
       return validator.isEmail(val);
     };
 
+    const maxLength = (val) => {
+      return val && val.trim().length <= 15
+    };
+
     return (
       <Form
         model="userinfo"
         onSubmit={(userinfo) => this.handleSubmit(userinfo)}
       >
         <Errors
-          className={`${Styles.errors} test`}
+          className={`${Styles.test} errors`}
           model=".firstName"
           show="touched"
           messages={{
@@ -39,7 +43,7 @@ class LoginForm extends React.Component {
             placeholder="Enter email"
             required
             validators={{
-              maxLength: (val) => val.length <= 15,
+              maxLength: (val) => maxLength(val),
               isEmail: (val) => isEmail(val)
             }}
             validateOn="blur" />
