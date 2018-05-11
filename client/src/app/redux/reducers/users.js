@@ -11,6 +11,8 @@ const userReducer = (state = initialState, action) => {
       return {...state, user: action.user, authenticated: true};
     case types.SET_LOGGED_USER:
       return {...state, authenticated: false};
+    case types.GET_USERS:
+      return {...state, uesrs: action.users, authenticated: true};
   }
 
   return state;

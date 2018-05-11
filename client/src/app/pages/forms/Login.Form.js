@@ -6,9 +6,21 @@ import * as userActions from "../../redux/actions/Users";
 import validator from "validator";
 
 class LoginForm extends React.Component {
+  constructor() {
+    super();
+
+    this.getUsers = this.getUsers.bind(this);
+  }
+
   handleSubmit(userinfo) {
     console.log(userinfo);
     this.props.login("bing@gmail.com", "bing");
+
+    // userActions.login()
+  }
+
+  getUsers() {
+    let test = this.props.getUsers({});
   }
 
   render() {
@@ -27,7 +39,7 @@ class LoginForm extends React.Component {
         onSubmit={(userinfo) => this.handleSubmit(userinfo)}
       >
         <Errors
-          className={`${Styles.test} errors`}
+          className="errors"
           model=".firstName"
           show="touched"
           messages={{
@@ -60,6 +72,10 @@ class LoginForm extends React.Component {
         <button type="submit" className="btn btn-default">
           Login
         </button>
+
+        <button className="btn btn-default" onClick={this.getUsers}>
+          Get Users
+        </button>
       </Form>
     );
   }
@@ -68,7 +84,7 @@ class LoginForm extends React.Component {
 const mapStateToProps = (state, props) => {
   return {
     ...props,
-    userinfo: state.Users.userinfo
+    userinfo: state.userinfo
   };
 };
 

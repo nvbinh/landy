@@ -3,9 +3,13 @@
  * Pass the access token as parameters or headers
  */
 export function authHeader() {
-  const user = JSON.parse(localStorage.getItem("user"));
+  const userStorage = localStorage.getItem("user");
+  let user = null;
+  if (userStorage) {
+    user = JSON.parse(userStorage);
+  }
   
-  if (user && user.token) {
+  if (user && user.id) {
     const authorization = ["Authorization:", user.id].join(" ");
     return {authorization};
   } else {

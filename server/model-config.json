@@ -46,5 +46,9 @@
   "News": {
     "dataSource": "landy",
     "public": true
+  },
+  "Customer": {
+    "dataSource": "landy",
+    "public": true
   }
 }
