@@ -1,4 +1,5 @@
 import {authHeader} from "./auth.service";
+import decode from "jwt-decode";
 import request from "../utils/ApiUtils";
 
 const login = async (username, password) => {
@@ -22,3 +23,37 @@ export const UserService = {
 // function login(username, password) {
 //   return fetchUser(username, password);
 // };
+
+
+class UserService {
+  constructor() {
+    this.login = this.login.bind(this);
+    this.logout = this.logout.bind(this);
+  }
+
+  async login(username, password) {
+    const credentials = {email: username, password: password};
+    const users = await request({method: "post", url: "api/Customers/login", data: credentials});
+
+    return users;
+  }
+
+  loggedIn() {
+    const token = localStorage.getItem("id_token");
+    return !!token && !this.isTokenExpired(token);
+  }
+
+  isTokenExpired(token) {
+    try {
+      const decodedToken = decode(token);
+      return (decodedToken.exp < Date.now() / 1000);
+    }
+    catch (error) {
+      return false;
+    }
+  }
+
+  logout() {
+    localStorage.removeItem("id_token");
+  }
+}
