@@ -40,33 +40,46 @@ class LoginForm extends React.Component {
       >
         <Errors
           className="errors"
-          model=".firstName"
+          model=".username"
           show="touched"
           messages={{
             valueMissing: 'Username is required',
-            maxLength: 'Must be 15 characters or less',
+            // maxLength: 'Must be 15 characters or less',
             isEmail: 'Email is not correct format'
           }}
         />
+        
+        <Errors
+          className="errors"
+          model=".password"
+          show="touched"
+          messages={{
+            valueMissing: 'Password is required'
+          }}
+        />
         <div className="form-group">
-          <label htmlFor="userinfo.firstName">Email: </label>
+          <label htmlFor="userinfo.username">Email: </label>
           <Control.text
-            model=".firstName"
+            type="email"
+            model=".username"
             className="form-control"
             placeholder="Enter email"
             required
             validators={{
-              maxLength: (val) => maxLength(val),
+              // maxLength: (val) => maxLength(val),
               isEmail: (val) => isEmail(val)
             }}
             validateOn="blur" />
         </div>
         <div className="form-group">
-          <label htmlFor="lastName">Password: </label>
+          <label htmlFor="userinfo.password">Password: </label>
           <Control.text
-            model=".lastName"
+            type="password"
+            model=".password"
             className="form-control"
-            placeholder="Enter password" />
+            placeholder="Enter password"
+            required
+            validateOn="blur" />
         </div>
 
         <button type="submit" className="btn btn-default">
@@ -83,8 +96,7 @@ class LoginForm extends React.Component {
 
 const mapStateToProps = (state, props) => {
   return {
-    ...props,
-    userinfo: state.userinfo
+    ...props
   };
 };
 

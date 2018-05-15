@@ -4,8 +4,7 @@ import {combineForms, createForms} from "react-redux-form";
 import Users from "./Users";
 
 const initialUserState = {
-  firstName: "",
-  lastName: ""
+  username: ""
 };
 
 const formStates = createForms({userinfo: initialUserState});
