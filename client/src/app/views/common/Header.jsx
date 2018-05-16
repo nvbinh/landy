@@ -1,6 +1,6 @@
-import React from 'react'
-import { NavLink } from 'react-router-dom'
-import logo from 'logo.svg';
+import React from "react";
+import { NavLink } from "react-router-dom";
+import logo from "logo.svg";
 
 const Header = () => (
   	<header className="App-header">
@@ -15,6 +15,6 @@ const Header = () => (
 		  To get started, edit <code>src/App.js</code> and save to reload.
 		</p>
 	</header>
-)
+);
 
-export default Header
+export default Header;

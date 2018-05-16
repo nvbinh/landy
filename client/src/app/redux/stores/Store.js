@@ -1,17 +1,17 @@
-import { createStore, compose, applyMiddleware, combineReducers } from 'redux';
-import thunk from 'redux-thunk';
-import logger from 'redux-logger';
-import { syncHistoryWithStore, routerReducer } from 'react-router-redux';
-import { BrowserHistory } from 'react-router';
-import { bindActionCreators } from 'redux';
-import rootReducer from '../reducers/index';
-import * as userActions from '../actions/Users';
+import { createStore, compose, applyMiddleware, combineReducers } from "redux";
+import thunk from "redux-thunk";
+import logger from "redux-logger";
+import { syncHistoryWithStore, routerReducer } from "react-router-redux";
+import { BrowserHistory } from "react-router";
+import { bindActionCreators } from "redux";
+import rootReducer from "../reducers/index";
+import * as userActions from "../actions/Users";
 
 const defaultState = {
   user: {
-    username: '',
+    username: "",
     admin: false,
-    _id: ''
+    _id: ""
   },
   authenticated: false
 };

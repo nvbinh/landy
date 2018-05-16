@@ -1,5 +1,5 @@
-import * as types from '../../constants/ActionTypes';
-import * as CommonConstants from '../../constants/Common.Constants';
+import * as types from "../../constants/ActionTypes";
+import * as CommonConstants from "../../constants/Common.Constants";
 
 const initialState = {
   authenticated: !!localStorage.getItem(CommonConstants.STORAGE_TOKEN_NAME)
@@ -12,7 +12,7 @@ const userReducer = (state = initialState, action) => {
         ...state,
         isFetching: false,
         authenticated: true,
-        errorMessage: ''
+        errorMessage: ""
       };
     case types.LOGIN_FAILURE:
       return {

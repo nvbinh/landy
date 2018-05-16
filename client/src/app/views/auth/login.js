@@ -1,14 +1,14 @@
 /* @flow */
-import React, { Component } from 'react';
-import Header from 'common/Header';
+import React, { Component } from "react";
+import Header from "common/Header";
 
 class Login extends Component {
   // Initialize state
   constructor(props) {
     super(props);
     this.state = {
-      user: '',
-      password: ''
+      user: "",
+      password: ""
     };
   }
 

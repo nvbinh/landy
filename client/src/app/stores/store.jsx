@@ -1,10 +1,10 @@
-import { createStore, combineReducers } from 'redux'
-import loggedUserReducer from '../reducers/loggedUserReducer'
+import { createStore, combineReducers } from "redux";
+import loggedUserReducer from "../reducers/loggedUserReducer";
 
 const reducers = combineReducers({
   loggedUserState: loggedUserReducer
-})
+});
 
-const store = createStore(reducers)
+const store = createStore(reducers);
 
-export default store
+export default store;

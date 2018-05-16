@@ -1,9 +1,9 @@
-import React from 'react'
+import React from "react";
 
 class Button extends React.Component {
   render() {
     return (
-      <button style={{background: this.props.color}}>
+      <button style={{ background: this.props.color }}>
         {this.props.children}
       </button>
     );
@@ -23,17 +23,15 @@ class Message extends React.Component {
 class MessageList extends React.Component {
   render() {
     const color = "purple";
-    const children = this.props.messages.map((message) =>
-      <Message text={message.text} color={color} />
-    );
+    const children = this.props.messages.map(message =>
+      <Message text={message.text} color={color} />);
     return <div>{children}</div>;
   }
 }
 
 class ExampleComponent extends React.Component {
   render() {
-    
-    <span style="background-color: #ffff00;">const { handleSubmit } = this.props</span>
+    <span style="background-color: #ffff00;">const { handleSubmit } = this.props</span>;
 
     return (
       <div>
@@ -43,4 +41,6 @@ class ExampleComponent extends React.Component {
   }
 }
 
-export default { Button, Message, MessageList, ExampleComponent };
+export default {
+  Button, Message, MessageList, ExampleComponent
+};

@@ -3,7 +3,8 @@
   "license": "landy",
   "version": "0.1",
   "scripts": {
-    "lint": "eslint --ext .js --ext .jsx src",
+    "lint": "node_modules/.bin/eslint --ext .js --ext .jsx src",
+    "lintfix": "node_modules/.bin/eslint --ext .js --ext .jsx --fix src",
     "serve": "node server.js",
     "dev": "webpack-dev-server --mode development --progress --colors",
     "build:dev": "webpack --mode development --progress --colors",

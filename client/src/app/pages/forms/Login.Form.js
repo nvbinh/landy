@@ -1,10 +1,10 @@
-import React from 'react';
-import PropTypes from 'prop-types';
-import { Control, Form, actions, Errors } from 'react-redux-form';
-import { connect } from 'react-redux';
-import Styles from './Login.Form.pcss';
-import * as userActions from '../../redux/actions/Users';
-import validator from 'validator';
+import React from "react";
+import PropTypes from "prop-types";
+import { Control, Form, actions, Errors } from "react-redux-form";
+import { connect } from "react-redux";
+import Styles from "./Login.Form.pcss";
+import * as userActions from "../../redux/actions/Users";
+import validator from "validator";
 
 class LoginForm extends React.Component {
   constructor() {
@@ -39,9 +39,9 @@ class LoginForm extends React.Component {
             model=".username"
             show="touched"
             messages={ {
-              valueMissing: 'Username is required',
+              valueMissing: "Username is required",
               // maxLength: 'Must be 15 characters or less',
-              isEmail: 'Email is not correct format'
+              isEmail: "Email is not correct format"
             } }
           />
 
@@ -50,7 +50,7 @@ class LoginForm extends React.Component {
             model=".password"
             show="touched"
             messages={ {
-              valueMissing: 'Password is required'
+              valueMissing: "Password is required"
             } }
           />
           <div className="form-group">

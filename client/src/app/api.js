@@ -1,5 +1,5 @@
-import $ from 'jquery';
-import _ from 'lodash';
+import $ from "jquery";
+import _ from "lodash";
 
 const GroupActions = {};
 const TeamActions = {};
@@ -33,7 +33,7 @@ export class Client {
     if (_.isUndefined(options)) {
       options = {};
     }
-    this.baseUrl = options.baseUrl || '/api/0';
+    this.baseUrl = options.baseUrl || "/api/0";
     this.activeRequests = {};
   }
 
@@ -66,12 +66,12 @@ export class Client {
   }
 
   request(path, options = {}) {
-    const query = $.param(options.query || '', true);
-    const method = options.method || (options.data ? 'POST' : 'GET');
+    const query = $.param(options.query || "", true);
+    const method = options.method || (options.data ? "POST" : "GET");
     let data = options.data;
     const id = this.uniqueId();
 
-    if (!_.isUndefined(data) && method !== 'GET') {
+    if (!_.isUndefined(data) && method !== "GET") {
       data = JSON.stringify(data);
     }
 
@@ -82,7 +82,7 @@ export class Client {
       fullUrl = path;
     }
     if (query) {
-      if (fullUrl.indexOf('?') !== -1) {
+      if (fullUrl.indexOf("?") !== -1) {
         fullUrl += `&${query}`;
       } else {
         fullUrl += `?${query}`;
@@ -93,9 +93,9 @@ export class Client {
       url: fullUrl,
       method,
       data,
-      contentType: 'application/json',
+      contentType: "application/json",
       headers: {
-        Accept: 'application/json; charset=utf-8'
+        Accept: "application/json; charset=utf-8"
       },
       success: this.wrapCallback(id, options.success),
       error: this.wrapCallback(id, options.error),
@@ -137,7 +137,7 @@ export class Client {
       path,
       {
         query,
-        method: 'DELETE',
+        method: "DELETE",
         success: (response) => {
           GroupActions.deleteSuccess(id, params.itemIds, response);
         },
@@ -160,7 +160,7 @@ export class Client {
       path,
       {
         query,
-        method: 'PUT',
+        method: "PUT",
         data: params.data,
         success: (response) => {
           GroupActions.updateSuccess(id, params.itemIds, response);
@@ -184,7 +184,7 @@ export class Client {
       path,
       {
         query,
-        method: 'PUT',
+        method: "PUT",
         data: { merge: 1 },
         success: (response) => {
           GroupActions.mergeSuccess(id, params.itemIds, response);
@@ -202,17 +202,17 @@ export class Client {
     const id = this.uniqueId();
 
     GroupActions.assignTo(id, params.id, {
-      email: (params.member && params.member.email) || ''
+      email: (params.member && params.member.email) || ""
     });
 
     return this._wrapRequest(
       path,
       {
-        method: 'PUT',
+        method: "PUT",
         // Sending an empty value to assignedTo is the same as "clear",
         // so if no member exists, that implies that we want to clear the
         // current assignee.
-        data: { assignedTo: (params.member && params.member.id) || '' },
+        data: { assignedTo: (params.member && params.member.id) || "" },
         success: (response) => {
           GroupActions.assignToSuccess(id, params.id, response);
         },
@@ -229,7 +229,7 @@ export class Client {
       `/organizations/${
         params.orgId
       }/members/${
-        params.memberId || 'me'
+        params.memberId || "me"
       }/teams/${
         params.teamId
       }/`;
@@ -240,7 +240,7 @@ export class Client {
     return this._wrapRequest(
       path,
       {
-        method: 'POST',
+        method: "POST",
         success: (response) => {
           TeamActions.updateSuccess(id, params.teamId, response);
         },
@@ -257,7 +257,7 @@ export class Client {
       `/organizations/${
         params.orgId
       }/members/${
-        params.memberId || 'me'
+        params.memberId || "me"
       }/teams/${
         params.teamId
       }/`;
@@ -268,7 +268,7 @@ export class Client {
     return this._wrapRequest(
       path,
       {
-        method: 'DELETE',
+        method: "DELETE",
         success: (response) => {
           TeamActions.updateSuccess(id, params.teamId, response);
         },

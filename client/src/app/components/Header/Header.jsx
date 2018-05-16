@@ -1,6 +1,6 @@
 import React from "react";
 import PropTypes from "prop-types";
-import {withRouter,NavLink} from "react-router-dom";
+import { withRouter, NavLink } from "react-router-dom";
 
 class Header extends React.Component {
   constructor() {
@@ -19,7 +19,7 @@ class Header extends React.Component {
           </li>
         </ul>
       </div>
-    )
+    );
   }
 }
 

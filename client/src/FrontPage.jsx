@@ -1,5 +1,5 @@
 import React from "react";
-import {connect} from "react-redux";
+import { connect } from "react-redux";
 import Header from "./app/components/Header";
 // import {mapDispatchToProps} from "./app/redux/stores/Store";
 import * as userActions from "./app/redux/actions/Users";
@@ -20,15 +20,13 @@ class Front extends React.Component {
       <div className="page">
         this is content page
       </div>
-    )
+    );
   }
 }
 
-const mapStateToProps = (state, props) => {
-  return {
-    ...props,
-    user: state.Users.user
-  };
-};
+const mapStateToProps = (state, props) => ({
+  ...props,
+  user: state.Users.user
+});
 
 export default connect(mapStateToProps, userActions)(Front);

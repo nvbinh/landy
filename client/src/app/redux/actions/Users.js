@@ -1,8 +1,8 @@
-import axios from 'axios';
-import request from '../../utils/ApiUtils';
-import * as types from '../../constants/ActionTypes';
-import * as CommonConstants from '../../constants/Common.Constants';
-import { UserService } from '../../services/user.service';
+import axios from "axios";
+import request from "../../utils/ApiUtils";
+import * as types from "../../constants/ActionTypes";
+import * as CommonConstants from "../../constants/Common.Constants";
+import { UserService } from "../../services/user.service";
 
 const loginRequestState = credentials => ({
   type: types.LOGIN_REQUEST,

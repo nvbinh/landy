@@ -1,4 +1,5 @@
 {
+	"parser": "babel-eslint",
 	"extends": "airbnb/base",
 	"rules": {
 		"react/jsx-quotes": 0,
@@ -7,6 +8,7 @@
 		"react/prefer-stateless-function": [0],
 		"react/jsx-filename-extension": ["error", { "extensions": [".js", ".jsx"] }],
 		"jsx-a11y/href-no-hash": "off",
+		"quotes": ["error", "double"],
 		
 		"comma-dangle": ["error", {
 			"arrays": "never",

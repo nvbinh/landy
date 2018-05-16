@@ -1,10 +1,10 @@
-import { combineReducers } from 'redux';
-import { routerReducer } from 'react-router-redux';
-import { combineForms, createForms } from 'react-redux-form';
-import Users from './Users';
+import { combineReducers } from "redux";
+import { routerReducer } from "react-router-redux";
+import { combineForms, createForms } from "react-redux-form";
+import Users from "./Users";
 
 const initialUserState = {
-  username: ''
+  username: ""
 };
 
 const formStates = createForms({ userinfo: initialUserState });
