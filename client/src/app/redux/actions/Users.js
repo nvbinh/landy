@@ -1,39 +1,55 @@
+import axios from 'axios';
 import request from "../../utils/ApiUtils";
 import * as types from "../../constants/ActionTypes";
+import * as CommonConstants from "../../constants/Common.Constants";
 import {UserService} from "../../services/user.service";
 
-import axios from 'axios';
-
-const fetchUserSuccess = user => ({
-  type: types.GET_LOGGED_USER,
-  user
+const loginRequestState = credentials => ({
+  type: types.LOGIN_REQUEST,
+  isFetching: true,
+  authenticated: false,
+  credentials
 });
 
-const getUsersSuccess = user => ({
-  type: types.GET_USERS,
-  getusers
+const loginSuccessState = user => ({
+  type: types.LOGIN_SUCCESS,
+  isFetching: false,
+  authenticated: true,
+  token: user.id
 });
 
-const fetchUser = (username, password) => (dispatch) => {
-  // const credentials = {email: username,password: password};
-  // const users = await request({method: "post", url: "api/Users/login", data: credentials});
+const loginFailureState = message => ({
+  type: types.LOGIN_FAILURE,
+  isFetching: false,
+  authenticated: false,
+  message
+});
 
+const userProfileSuccess = profile => ({
+  type: types.USER_PROFILE,
+  isFetching: false,
+  profile
+});
+
+const loginFunc = (username, password) => (dispatch) => {
   UserService.login(username, password).then(user => {
-    localStorage.setItem("user", JSON.stringify(user));
-    dispatch(fetchUserSuccess(user));
+    localStorage.setItem(CommonConstants.STORAGE_TOKEN_NAME, user.id);
+    dispatch(loginSuccessState(user));
+  }).catch(error => {
+    dispatch(loginFailureState({error: "Login failure. Error code: " + error.status}));
   });
 };
 
-const fetchUsers = (filters) => (dispatch) => {
+const userProfileFunc = (filters) => (dispatch) => {
   UserService.getUsers(filters).then(users => {
-    dispatch(getUsersSuccess(users));
+    dispatch(userProfileSuccess(users));
   });
 };
 
 export const login = (username, password) => (dispatch) => {
-  dispatch(fetchUser(username, password));
+  dispatch(loginFunc(username, password));
 };
 
-export const getUsers = (filters) => (dispatch) => {
-  dispatch(fetchUsers(filters));
+export const getUserProfile = (filters) => (dispatch) => {
+  dispatch(userProfileFunc(filters));
 };
