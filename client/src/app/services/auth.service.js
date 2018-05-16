@@ -1,4 +1,4 @@
-import * as CommonConstants from "../constants/Common.Constants";
+import * as CommonConstants from '../constants/Common.Constants';
 
 /**
  * https://loopback.io/doc/en/lb2/Making-authenticated-requests.html
@@ -11,6 +11,6 @@ export function authHeader() {
     return {};
   }
 
-  const authorization = ["Authorization: Bearer ", token].join(" ");
-  return {authorization};
+  const authorization = ['Authorization: Bearer ', token].join(' ');
+  return { authorization };
 }

@@ -1,10 +1,10 @@
-import React from "react";
-import PropTypes from "prop-types";
-import {Control, Form, actions, Errors} from "react-redux-form";
-import {connect} from "react-redux";
-import Styles from "./Login.Form.pcss";
-import * as userActions from "../../redux/actions/Users";
-import validator from "validator";
+import React from 'react';
+import PropTypes from 'prop-types';
+import { Control, Form, actions, Errors } from 'react-redux-form';
+import { connect } from 'react-redux';
+import Styles from './Login.Form.pcss';
+import * as userActions from '../../redux/actions/Users';
+import validator from 'validator';
 
 class LoginForm extends React.Component {
   constructor() {
@@ -15,22 +15,18 @@ class LoginForm extends React.Component {
   }
 
   render() {
-    const isEmail = (val) => {
-      return validator.isEmail(val);
-    };
+    const isEmail = val => validator.isEmail(val);
 
-    const maxLength = (val) => {
-      return val && val.trim().length <= 15
-    };
+    const maxLength = val => val && val.trim().length <= 15;
 
-    const {errorMessage, profile} = this.props;
+    const { errorMessage, profile } = this.props;
 
     return (
       <div>
         <Form
           hideNativeErrors
           model="userinfo"
-          onSubmit={(userinfo) => this.handleSubmit(userinfo)}
+          onSubmit={ userinfo => this.handleSubmit(userinfo) }
         >
           {
             errorMessage && <p>{errorMessage.error}</p>
@@ -42,20 +38,20 @@ class LoginForm extends React.Component {
             className="errors"
             model=".username"
             show="touched"
-            messages={{
+            messages={ {
               valueMissing: 'Username is required',
               // maxLength: 'Must be 15 characters or less',
               isEmail: 'Email is not correct format'
-            }}
+            } }
           />
-          
+
           <Errors
             className="errors"
             model=".password"
             show="touched"
-            messages={{
+            messages={ {
               valueMissing: 'Password is required'
-            }}
+            } }
           />
           <div className="form-group">
             <label htmlFor="userinfo.username">Email: </label>
@@ -65,11 +61,12 @@ class LoginForm extends React.Component {
               className="form-control"
               placeholder="Enter email"
               required
-              validators={{
+              validators={ {
                 // maxLength: (val) => maxLength(val),
-                isEmail: (val) => isEmail(val)
-              }}
-              validateOn="blur" />
+                isEmail: val => isEmail(val)
+              } }
+              validateOn="blur"
+            />
           </div>
           <div className="form-group">
             <label htmlFor="userinfo.password">Password: </label>
@@ -79,7 +76,8 @@ class LoginForm extends React.Component {
               className="form-control"
               placeholder="Enter password"
               required
-              validateOn="blur" />
+              validateOn="blur"
+            />
           </div>
 
           <button type="submit" className="btn btn-default">
@@ -87,7 +85,7 @@ class LoginForm extends React.Component {
           </button>
         </Form>
 
-        <button className="btn btn-default" onClick={this.getUserProfile}>
+        <button className="btn btn-default" onClick={ this.getUserProfile }>
         Get Users
         </button>
       </div>
@@ -103,7 +101,7 @@ class LoginForm extends React.Component {
   }
 
   getUserProfile() {
-    let profile = this.props.getUserProfile({});
+    const profile = this.props.getUserProfile({});
 
     console.log(profile);
   }
@@ -112,14 +110,12 @@ class LoginForm extends React.Component {
 LoginForm.propTypes = {
   errorMessage: PropTypes.object,
   profile: PropTypes.array
-}
-
-const mapStateToProps = (state, props) => {
-  return {
-    ...props,
-    errorMessage: state.Users.errorMessage,
-    profile: state.Users.profile
-  };
 };
+
+const mapStateToProps = (state, props) => ({
+  ...props,
+  errorMessage: state.Users.errorMessage,
+  profile: state.Users.profile
+});
 
 export default connect(mapStateToProps, userActions)(LoginForm);

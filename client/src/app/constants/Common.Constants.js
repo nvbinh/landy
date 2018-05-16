@@ -1,4 +1,4 @@
 /**
  * Token name
  */
-export const STORAGE_TOKEN_NAME = "id_token";
+export const STORAGE_TOKEN_NAME = 'id_token';

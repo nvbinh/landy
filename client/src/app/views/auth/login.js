@@ -25,8 +25,8 @@ class Login extends Component {
         <Header />
         <div>
           <h1>Login Form</h1>
-          <span className="icon-avatar"></span>
-          <span className="icon-robot"></span>
+          <span className="icon-avatar" />
+          <span className="icon-robot" />
           <button className="more">
             Login
           </button>

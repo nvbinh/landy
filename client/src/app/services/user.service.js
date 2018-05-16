@@ -1,17 +1,17 @@
-import {authHeader} from "./auth.service";
-import decode from "jwt-decode";
-import request from "../utils/ApiUtils";
-import * as CommonConstants from "../constants/Common.Constants";
+import { authHeader } from './auth.service';
+import decode from 'jwt-decode';
+import request from '../utils/ApiUtils';
+import * as CommonConstants from '../constants/Common.Constants';
 
 const login = async (username, password) => {
-  const credentials = {email: username, password: password};
-  const users = await request({method: "post", url: "api/Customers/login", data: credentials});
+  const credentials = { email: username, password };
+  const users = await request({ method: 'post', url: 'api/Customers/login', data: credentials });
 
   return users;
 };
 
 const getUsers = async (filters) => {
-  const users = await request({method: "get", url: "api/Customers", filter: filters});
+  const users = await request({ method: 'get', url: 'api/Customers', filter: filters });
 
   return users;
 };

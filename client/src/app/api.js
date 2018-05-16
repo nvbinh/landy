@@ -1,8 +1,8 @@
 import $ from 'jquery';
 import _ from 'lodash';
 
-let GroupActions = {};
-let TeamActions = {};
+const GroupActions = {};
+const TeamActions = {};
 
 export class Request {
   constructor(xhr) {
@@ -22,10 +22,10 @@ export class Request {
  */
 export function paramsToQueryArgs(params) {
   return params.itemIds
-    ? {id: params.itemIds} // items matching array of itemids
+    ? { id: params.itemIds } // items matching array of itemids
     : params.query
-        ? {query: params.query} // items matching search query
-        : undefined; // all items
+      ? { query: params.query } // items matching search query
+      : undefined; // all items
 }
 
 export class Client {
@@ -38,20 +38,18 @@ export class Client {
   }
 
   uniqueId() {
-    let s4 = () => {
-      return Math.floor((1 + Math.random()) * 0x10000).toString(16).substring(1);
-    };
-    return s4() + s4() + '-' + s4() + '-' + s4() + '-' + s4() + '-' + s4() + s4() + s4();
+    const s4 = () => Math.floor((1 + Math.random()) * 0x10000).toString(16).substring(1);
+    return `${s4() + s4()}-${s4()}-${s4()}-${s4()}-${s4()}${s4()}${s4()}`;
   }
 
   wrapCallback(id, func, cleanup) {
-    /*eslint consistent-return:0*/
+    /* eslint consistent-return:0 */
     if (_.isUndefined(func)) {
       return;
     }
 
     return (...args) => {
-      let req = this.activeRequests[id];
+      const req = this.activeRequests[id];
       if (cleanup === true) {
         delete this.activeRequests[id];
       }
@@ -62,16 +60,16 @@ export class Client {
   }
 
   clear() {
-    for (let id in this.activeRequests) {
+    for (const id in this.activeRequests) {
       this.activeRequests[id].cancel();
     }
   }
 
   request(path, options = {}) {
-    let query = $.param(options.query || '', true);
-    let method = options.method || (options.data ? 'POST' : 'GET');
+    const query = $.param(options.query || '', true);
+    const method = options.method || (options.data ? 'POST' : 'GET');
     let data = options.data;
-    let id = this.uniqueId();
+    const id = this.uniqueId();
 
     if (!_.isUndefined(data) && method !== 'GET') {
       data = JSON.stringify(data);
@@ -85,26 +83,24 @@ export class Client {
     }
     if (query) {
       if (fullUrl.indexOf('?') !== -1) {
-        fullUrl += '&' + query;
+        fullUrl += `&${query}`;
       } else {
-        fullUrl += '?' + query;
+        fullUrl += `?${query}`;
       }
     }
 
-    this.activeRequests[id] = new Request(
-      $.ajax({
-        url: fullUrl,
-        method,
-        data,
-        contentType: 'application/json',
-        headers: {
-          Accept: 'application/json; charset=utf-8'
-        },
-        success: this.wrapCallback(id, options.success),
-        error: this.wrapCallback(id, options.error),
-        complete: this.wrapCallback(id, options.complete, true)
-      })
-    );
+    this.activeRequests[id] = new Request($.ajax({
+      url: fullUrl,
+      method,
+      data,
+      contentType: 'application/json',
+      headers: {
+        Accept: 'application/json; charset=utf-8'
+      },
+      success: this.wrapCallback(id, options.success),
+      error: this.wrapCallback(id, options.error),
+      complete: this.wrapCallback(id, options.complete, true)
+    }));
 
     return this.activeRequests[id];
   }
@@ -112,7 +108,7 @@ export class Client {
   _chain(...funcs) {
     funcs = funcs.filter(f => !_.isUndefined(f) && f);
     return (...args) => {
-      funcs.forEach(func => {
+      funcs.forEach((func) => {
         func.apply(funcs, args);
       });
     };
@@ -131,9 +127,9 @@ export class Client {
   }
 
   bulkDelete(params, options) {
-    let path = '/projects/' + params.orgId + '/' + params.projectId + '/issues/';
-    let query = paramsToQueryArgs(params);
-    let id = this.uniqueId();
+    const path = `/projects/${params.orgId}/${params.projectId}/issues/`;
+    const query = paramsToQueryArgs(params);
+    const id = this.uniqueId();
 
     GroupActions.delete(id, params.itemIds);
 
@@ -142,10 +138,10 @@ export class Client {
       {
         query,
         method: 'DELETE',
-        success: response => {
+        success: (response) => {
           GroupActions.deleteSuccess(id, params.itemIds, response);
         },
-        error: error => {
+        error: (error) => {
           GroupActions.deleteError(id, params.itemIds, error);
         }
       },
@@ -154,9 +150,9 @@ export class Client {
   }
 
   bulkUpdate(params, options) {
-    let path = '/projects/' + params.orgId + '/' + params.projectId + '/issues/';
-    let query = paramsToQueryArgs(params);
-    let id = this.uniqueId();
+    const path = `/projects/${params.orgId}/${params.projectId}/issues/`;
+    const query = paramsToQueryArgs(params);
+    const id = this.uniqueId();
 
     GroupActions.update(id, params.itemIds, params.data);
 
@@ -166,10 +162,10 @@ export class Client {
         query,
         method: 'PUT',
         data: params.data,
-        success: response => {
+        success: (response) => {
           GroupActions.updateSuccess(id, params.itemIds, response);
         },
-        error: error => {
+        error: (error) => {
           GroupActions.updateError(id, params.itemIds, error, params.failSilently);
         }
       },
@@ -178,9 +174,9 @@ export class Client {
   }
 
   merge(params, options) {
-    let path = '/projects/' + params.orgId + '/' + params.projectId + '/issues/';
-    let query = paramsToQueryArgs(params);
-    let id = this.uniqueId();
+    const path = `/projects/${params.orgId}/${params.projectId}/issues/`;
+    const query = paramsToQueryArgs(params);
+    const id = this.uniqueId();
 
     GroupActions.merge(id, params.itemIds);
 
@@ -189,11 +185,11 @@ export class Client {
       {
         query,
         method: 'PUT',
-        data: {merge: 1},
-        success: response => {
+        data: { merge: 1 },
+        success: (response) => {
           GroupActions.mergeSuccess(id, params.itemIds, response);
         },
-        error: error => {
+        error: (error) => {
           GroupActions.mergeError(id, params.itemIds, error);
         }
       },
@@ -202,8 +198,8 @@ export class Client {
   }
 
   assignTo(params, options) {
-    let path = '/issues/' + params.id + '/';
-    let id = this.uniqueId();
+    const path = `/issues/${params.id}/`;
+    const id = this.uniqueId();
 
     GroupActions.assignTo(id, params.id, {
       email: (params.member && params.member.email) || ''
@@ -216,11 +212,11 @@ export class Client {
         // Sending an empty value to assignedTo is the same as "clear",
         // so if no member exists, that implies that we want to clear the
         // current assignee.
-        data: {assignedTo: (params.member && params.member.id) || ''},
-        success: response => {
+        data: { assignedTo: (params.member && params.member.id) || '' },
+        success: (response) => {
           GroupActions.assignToSuccess(id, params.id, response);
         },
-        error: error => {
+        error: (error) => {
           GroupActions.assignToError(id, params.id, error);
         }
       },
@@ -229,15 +225,15 @@ export class Client {
   }
 
   joinTeam(params, options) {
-    let path =
-      '/organizations/' +
-      params.orgId +
-      '/members/' +
-      (params.memberId || 'me') +
-      '/teams/' +
-      params.teamId +
-      '/';
-    let id = this.uniqueId();
+    const path =
+      `/organizations/${
+        params.orgId
+      }/members/${
+        params.memberId || 'me'
+      }/teams/${
+        params.teamId
+      }/`;
+    const id = this.uniqueId();
 
     TeamActions.update(id, params.teamId);
 
@@ -245,10 +241,10 @@ export class Client {
       path,
       {
         method: 'POST',
-        success: response => {
+        success: (response) => {
           TeamActions.updateSuccess(id, params.teamId, response);
         },
-        error: error => {
+        error: (error) => {
           TeamActions.updateError(id, params.teamId, error);
         }
       },
@@ -257,15 +253,15 @@ export class Client {
   }
 
   leaveTeam(params, options) {
-    let path =
-      '/organizations/' +
-      params.orgId +
-      '/members/' +
-      (params.memberId || 'me') +
-      '/teams/' +
-      params.teamId +
-      '/';
-    let id = this.uniqueId();
+    const path =
+      `/organizations/${
+        params.orgId
+      }/members/${
+        params.memberId || 'me'
+      }/teams/${
+        params.teamId
+      }/`;
+    const id = this.uniqueId();
 
     TeamActions.update(id, params.teamId);
 
@@ -273,10 +269,10 @@ export class Client {
       path,
       {
         method: 'DELETE',
-        success: response => {
+        success: (response) => {
           TeamActions.updateSuccess(id, params.teamId, response);
         },
-        error: error => {
+        error: (error) => {
           TeamActions.updateError(id, params.teamId, error);
         }
       },

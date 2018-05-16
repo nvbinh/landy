@@ -1,17 +1,17 @@
-import {combineReducers} from "redux";
-import {routerReducer} from "react-router-redux";
-import {combineForms, createForms} from "react-redux-form";
-import Users from "./Users";
+import { combineReducers } from 'redux';
+import { routerReducer } from 'react-router-redux';
+import { combineForms, createForms } from 'react-redux-form';
+import Users from './Users';
 
 const initialUserState = {
-  username: ""
+  username: ''
 };
 
-const formStates = createForms({userinfo: initialUserState});
+const formStates = createForms({ userinfo: initialUserState });
 
 const rootReducer = combineReducers({
   Users,
-  ...createForms({userinfo: initialUserState}),
+  ...createForms({ userinfo: initialUserState }),
   routing: routerReducer
 });
 
