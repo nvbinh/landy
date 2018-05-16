@@ -126,11 +126,17 @@ module.exports = (env, argv) => {
       ]
     },
     devServer: {
-      inline: true,
+      inline: false,
+      hot: false,
+      progress: true,
       historyApiFallback: {
         index: "index.html"
       },
-      contentBase: BUILD_DIR
+      stats: { colors: true },
+      contentBase: BUILD_DIR,
+      watchOptions: {
+        ignore: /node_modules/
+      }
     }
   };
 };

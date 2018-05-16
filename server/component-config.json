@@ -14,7 +14,8 @@
       "Role",
       "book",
       "Category",
-      "News"
+      "News",
+      "Customer"
     ],
     "fixtures": "./seeds/"
   }

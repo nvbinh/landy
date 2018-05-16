@@ -8,6 +8,7 @@ import * as userActions from "./app/redux/actions/Users";
 import Header from "./app/components/Header";
 import FrontPage from "./FrontPage";
 import LoginPage from "./app/pages/Login.Page";
+import "./postcss/global.pcss";
 import Styles from "./postcss/layout.pcss";
 
 const NotFound = () => <h1>404 error..., page not found</h1>;
@@ -18,7 +19,7 @@ class App extends React.Component {
   }
 
   componentWillMount() {
-    this.props.fetchUsedNeeded("bing@gmail.com", "bing");
+    
   }
 
   render() {
@@ -60,4 +61,4 @@ class App extends React.Component {
   }
 }
 
-export default withRouter(connect(null, userActions)(App));
+export default withRouter(App);

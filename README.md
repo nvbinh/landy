@@ -31,3 +31,11 @@ https://stackoverflow.com/questions/30560735/getting-joined-data-from-strongloop
 http://localhost:3000/explorer/#!/News/News_findById
 params:
 {"include":"category"}
+
+Customize a model using JSON
+https://loopback.io/doc/en/lb2/Customizing-models.html
+
+plural - set to a custom string value to use, instead of the default standard plural form.
+strict - set to true to make the model save only instances that have the predefined set of properties. Any additional properties in a save or update operation are not persisted to the data source. False by default.
+idInjection - Whether to automatically add an id property to the model. True by default.
+http.path - customized HTTP path of REST endpoints.
