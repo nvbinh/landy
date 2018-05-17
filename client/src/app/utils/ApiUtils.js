@@ -5,25 +5,12 @@
 import axios from "axios";
 import { authHeader } from "../services/auth.service";
 
-const client = axios.create({
-  baseURL: "https://localhost:3000",
-  timeout: 1000,
-  withCredentials: true,
-  // transformRequest: [(data) => JSON.stringify(data.data)],
-  responseType: "json",
-  headers: {
-    Accept: "application/json, text/plain, */*",
-    "content-Type": "application/json;charset=UTF-8"
-  }
-});
-
 axios.defaults.baseURL = "http://localhost:3000";
 
 const request = (options) => {
   options.headers = authHeader();
 
   const onSuccess = response =>
-    // console.log(response.data);
     response.data;
   const onError = (error) => {
     console.log("Request failed: ", error.config);

@@ -1,4 +1,3 @@
-import { authHeader } from "./auth.service";
 import decode from "jwt-decode";
 import request from "../utils/ApiUtils";
 import * as CommonConstants from "../constants/Common.Constants";

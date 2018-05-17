@@ -5,9 +5,9 @@ import { TransitionGroup, CSSTransition } from "react-transition-group";
 import { connect } from "react-redux";
 // import {mapDispatchToProps} from "./app/redux/stores/Store";
 import * as userActions from "./app/redux/actions/Users";
-import Header from "./app/components/Header";
 import FrontPage from "./FrontPage";
 import LoginPage from "./app/pages/Login.Page";
+import Header from "./app/components/Header";
 import "./postcss/global.pcss";
 import Styles from "./postcss/layout.pcss";
 
@@ -26,7 +26,7 @@ class App extends React.Component {
     const { location, history } = this.props;
 
     return (
-      <div>
+      <React.Fragment>
         <Header />
         <TransitionGroup className="page-wrapper">
           <CSSTransition
@@ -56,7 +56,7 @@ class App extends React.Component {
             </Switch>
           </CSSTransition>
         </TransitionGroup>
-      </div>
+      </React.Fragment>
     );
   }
 }

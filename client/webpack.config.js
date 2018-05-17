@@ -53,7 +53,7 @@ module.exports = (env, argv) => {
         externals: [
           {
             module: "bootstrap",
-            entry: "dist/css/bootstrap.min.css"
+            entry: "dist/css/bootstrap.css"
           }
         ]
       }),
@@ -78,8 +78,16 @@ module.exports = (env, argv) => {
       rules: [
         {
           test: /\.(js|jsx)$/,
-          loader: ["babel-loader", "eslint-loader"],
+          loader: "babel-loader",
           include: APP_DIR
+        },
+        {
+          test: /\.(js|jsx)$/,
+          loader: "eslint-loader",
+          include: APP_DIR,
+          options: {
+            emitWarning: true,
+          }
         },
         {
           test: /\.pcss$/,

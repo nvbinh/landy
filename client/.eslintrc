@@ -12,6 +12,8 @@
 		"react/jsx-filename-extension": ["error", { "extensions": [".js", ".jsx"] }],
 		"jsx-a11y/href-no-hash": "off",
 		"quotes": ["error", "double"],
+		"linebreak-style": ["error", "windows"],
+		"no-console": "off",
 		
 		"comma-dangle": ["error", {
 			"arrays": "never",
