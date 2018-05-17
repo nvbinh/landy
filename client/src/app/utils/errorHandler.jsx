@@ -1,13 +1,13 @@
-import React from 'react';
-import RouteError from '../views/routeError';
+import React from "react";
+import RouteError from "../views/routeError";
 
 export default function errorHandler(Component) {
   const originalRender = Component.prototype.render;
-  Component.prototype.render = function() {
+  Component.prototype.render = function () {
     try {
       return originalRender.apply(this, arguments);
     } catch (err) {
-      /*eslint no-console:0*/
+      /* eslint no-console:0 */
       setTimeout(() => {
         throw err;
       });

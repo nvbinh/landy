@@ -1,8 +1,8 @@
-import axios from 'axios';
+import axios from "axios";
 import request from "../../utils/ApiUtils";
 import * as types from "../../constants/ActionTypes";
 import * as CommonConstants from "../../constants/Common.Constants";
-import {UserService} from "../../services/user.service";
+import { UserService } from "../../services/user.service";
 
 const loginRequestState = credentials => ({
   type: types.LOGIN_REQUEST,
@@ -32,16 +32,16 @@ const userProfileSuccess = profile => ({
 });
 
 const loginFunc = (username, password) => (dispatch) => {
-  UserService.login(username, password).then(user => {
+  UserService.login(username, password).then((user) => {
     localStorage.setItem(CommonConstants.STORAGE_TOKEN_NAME, user.id);
     dispatch(loginSuccessState(user));
-  }).catch(error => {
-    dispatch(loginFailureState({error: "Login failure. Error code: " + error.status}));
+  }).catch((error) => {
+    dispatch(loginFailureState({ error: `Login failure. Error code: ${error.status}` }));
   });
 };
 
-const userProfileFunc = (filters) => (dispatch) => {
-  UserService.getUsers(filters).then(users => {
+const userProfileFunc = filters => (dispatch) => {
+  UserService.getUsers(filters).then((users) => {
     dispatch(userProfileSuccess(users));
   });
 };
@@ -50,6 +50,6 @@ export const login = (username, password) => (dispatch) => {
   dispatch(loginFunc(username, password));
 };
 
-export const getUserProfile = (filters) => (dispatch) => {
+export const getUserProfile = filters => (dispatch) => {
   dispatch(userProfileFunc(filters));
 };

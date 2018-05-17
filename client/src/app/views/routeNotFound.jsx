@@ -1,4 +1,4 @@
-import React, { Component } from 'react';
+import React, { Component } from "react";
 // import DocumentTitle from 'react-document-title';
 // import Footer from '../components/footer';
 // import Sidebar from '../components/sidebar';
@@ -6,7 +6,7 @@ import React, { Component } from 'react';
 
 class RouteNotFound extends Component {
   getTitle() {
-    return 'Page Not Found';
+    return "Page Not Found";
   }
 
   render() {
@@ -25,7 +25,7 @@ class RouteNotFound extends Component {
     //       <Footer />
     //     </div>
     //   </DocumentTitle>
-      
+
     return (
         <div className="app">
           <div className="container">

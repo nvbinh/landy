@@ -1,8 +1,8 @@
 import React from "react";
-import {render} from "react-dom";
-import {Route, Switch, withRouter} from "react-router-dom";
-import {TransitionGroup, CSSTransition} from "react-transition-group";
-import {connect} from "react-redux";
+import { render } from "react-dom";
+import { Route, Switch, withRouter } from "react-router-dom";
+import { TransitionGroup, CSSTransition } from "react-transition-group";
+import { connect } from "react-redux";
 // import {mapDispatchToProps} from "./app/redux/stores/Store";
 import * as userActions from "./app/redux/actions/Users";
 import Header from "./app/components/Header";
@@ -19,20 +19,20 @@ class App extends React.Component {
   }
 
   componentWillMount() {
-    
+
   }
 
   render() {
-    const {location, history} = this.props;
+    const { location, history } = this.props;
 
     return (
       <div>
         <Header />
         <TransitionGroup className="page-wrapper">
-        <CSSTransition
-          in={true}
-          key={location.key}
-          classNames={
+          <CSSTransition
+            in
+            key={ location.key }
+            classNames={
             history.action === "POP"
               ? {
                   enter: Styles.transitionBackEnter,
@@ -47,12 +47,12 @@ class App extends React.Component {
                   exitActive: Styles.transitionForwardExitActive
                 }
           }
-          timeout={300}
+            timeout={ 300 }
           >
-            <Switch location={location}>
-              <Route exact path="/" component={FrontPage} />
-              <Route path="/login" component={LoginPage} />
-              <Route component={NotFound} />
+            <Switch location={ location }>
+              <Route exact path="/" component={ FrontPage } />
+              <Route path="/login" component={ LoginPage } />
+              <Route component={ NotFound } />
             </Switch>
           </CSSTransition>
         </TransitionGroup>

@@ -77,8 +77,8 @@ module.exports = (env, argv) => {
     module: {
       rules: [
         {
-          test: /.jsx?$/,
-          loader: "babel-loader",
+          test: /\.(js|jsx)$/,
+          loader: ["babel-loader", "eslint-loader"],
           include: APP_DIR
         },
         {

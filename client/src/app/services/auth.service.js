@@ -12,5 +12,5 @@ export function authHeader() {
   }
 
   const authorization = ["Authorization: Bearer ", token].join(" ");
-  return {authorization};
+  return { authorization };
 }
