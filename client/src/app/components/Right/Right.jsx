@@ -10,9 +10,9 @@ class Right extends React.Component {
   render() {
     return (
       <React.Fragment>
-        <h4 classNameName="d-flex justify-content-between align-items-center mb-3">
-          <span classNameName="text-muted">Your cart</span>
-          <span classNameName="badge badge-secondary badge-pill">3</span>
+        <h4 className="d-flex justify-content-between align-items-center mb-3">
+          <span className="text-muted">Your cart</span>
+          <span className="badge badge-secondary badge-pill">3</span>
         </h4>
 
         <ul className="list-group mb-3">

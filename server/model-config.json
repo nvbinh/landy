@@ -50,5 +50,9 @@
   "Customer": {
     "dataSource": "landy",
     "public": true
+  },
+  "Container": {
+    "dataSource": "storage",
+    "public": true
   }
 }

@@ -3,10 +3,10 @@
   "plural": "customers",
   "base": "User",
   "idInjection": true,
-  "ttl": 31449600,
   "options": {
     "validateUpsert": true
   },
+  "ttl": 31449600,
   "properties": {
     "firstName": {
       "type": "string"

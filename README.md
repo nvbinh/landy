@@ -39,3 +39,6 @@ plural - set to a custom string value to use, instead of the default standard pl
 strict - set to true to make the model save only instances that have the predefined set of properties. Any additional properties in a save or update operation are not persisted to the data source. False by default.
 idInjection - Whether to automatically add an id property to the model. True by default.
 http.path - customized HTTP path of REST endpoints.
+
+Upload file to server
+https://loopback.io/doc/en/lb3/Storage-component.html#example
