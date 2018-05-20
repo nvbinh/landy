@@ -5,12 +5,12 @@
   },
   "landy": {
     "host": "127.0.0.1",
-    "port": 3306,
+    "port": 5432,
     "database": "landy",
-    "password": "",
+    "password": "b",
     "name": "landy",
-    "user": "root",
-    "connector": "mysql"
+    "user": "postgres",
+    "connector": "postgresql"
   },
   "storage": {
     "name": "storage",
