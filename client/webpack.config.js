@@ -1,3 +1,5 @@
+// https://medium.com/@mihirsanghavi/a-modern-front-end-project-setup-98e698c71aad
+
 "use strict";
 const webpack = require("webpack");
 const { getIfUtils, removeEmpty } = require("webpack-config-utils");
@@ -11,6 +13,20 @@ const path = require("path");
 let BUILD_DIR = path.resolve(__dirname, "public");
 let APP_DIR = path.resolve(__dirname, "src");
 let NODE_DIR = path.resolve(__dirname, "node_modules");
+
+// the path(s) that should be cleaned
+let pathsToClean = [
+  'public',
+  'build'
+]
+
+// the clean options to use
+let cleanOptions = {
+  root:     '/full/webpack/root/path',
+  exclude:  ['shared.js'],
+  verbose:  true,
+  dry:      false
+}
 
 module.exports = (env, argv) => {
   const { ifProduction, ifNotProduction } = getIfUtils(argv.mode);
@@ -38,6 +54,7 @@ module.exports = (env, argv) => {
       }
     },
     plugins: removeEmpty([
+      new CleanWebpackPlugin(pathsToClean, cleanOptions),
       new CaseSensitivePathsPlugin(),
       new Dotenv({ systemvars: true }),
       new HtmlWebpackPlugin({
